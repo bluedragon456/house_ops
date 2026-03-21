@@ -1,0 +1,157 @@
+mark_serviced:
+  fields:
+    asset_id:
+      name: Asset ID
+      description: The internal HouseOps asset identifier.
+      required: true
+      example: furnace_main_hall
+      selector:
+        text:
+    task_key:
+      name: Task key
+      description: The task to mark complete, such as filter, flush, test, or battery.
+      required: true
+      example: filter
+      selector:
+        text:
+    occurred_on:
+      name: Occurred on
+      description: Optional service date. Leave empty to log today.
+      example: "2026-03-21"
+      selector:
+        date:
+
+snooze_task:
+  fields:
+    asset_id:
+      name: Asset ID
+      description: The internal HouseOps asset identifier.
+      required: true
+      selector:
+        text:
+    task_key:
+      name: Task key
+      description: The task to snooze.
+      required: true
+      selector:
+        text:
+    days:
+      name: Snooze days
+      description: Optional number of days to snooze the task. Defaults to 7.
+      example: 7
+      selector:
+        number:
+          min: 1
+          max: 90
+          mode: box
+
+recalculate:
+  description: Recompute maintenance states using current schedules and linked sensors.
+
+add_asset:
+  fields:
+    equipment_type:
+      name: Equipment type
+      description: Furnace, water heater, or fire alarms.
+      required: true
+      selector:
+        select:
+          options:
+            - furnace
+            - water_heater
+            - fire_alarms
+    name:
+      name: Asset name
+      description: Friendly name for this piece of equipment.
+      required: true
+      selector:
+        text:
+    area:
+      name: Area
+      description: Optional Home Assistant area or plain-text location.
+      selector:
+        text:
+    manufacturer:
+      name: Manufacturer
+      selector:
+        text:
+    model:
+      name: Model
+      selector:
+        text:
+    install_date:
+      name: Install date
+      selector:
+        date:
+    last_serviced:
+      name: Last serviced
+      required: true
+      selector:
+        date:
+    base_interval_days:
+      name: Base maintenance interval
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    notes:
+      name: Notes
+      selector:
+        text:
+    runtime_sensor:
+      name: Runtime sensor
+      selector:
+        entity:
+          domain:
+            - sensor
+            - number
+            - input_number
+    runtime_threshold:
+      name: Runtime threshold
+      selector:
+        number:
+          min: 0
+          max: 100000
+          mode: box
+    usage_sensor:
+      name: Usage sensor
+      selector:
+        entity:
+          domain:
+            - sensor
+            - number
+            - input_number
+    usage_threshold:
+      name: Usage threshold
+      selector:
+        number:
+          min: 0
+          max: 100000
+          mode: box
+    battery_sensor:
+      name: Battery sensor
+      selector:
+        entity:
+          domain:
+            - sensor
+            - number
+    battery_threshold:
+      name: Battery threshold
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    enable_anode_task:
+      name: Enable anode task
+      selector:
+        boolean:
+    battery_interval_days:
+      name: Battery interval days
+      selector:
+        number:
+          min: 30
+          max: 730
+          mode: box

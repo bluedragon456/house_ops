@@ -1,0 +1,94 @@
+{
+  "title": "HouseOps",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Create HouseOps",
+        "description": "Create the HouseOps integration and add the first equipment asset.",
+        "data": {
+          "instance_name": "Instance name"
+        }
+      },
+      "asset": {
+        "title": "Add equipment",
+        "description": "Choose the equipment type, maintenance schedule, and any linked sensors.",
+        "data": {
+          "equipment_type": "Equipment type",
+          "name": "Name",
+          "area": "Area (optional)",
+          "manufacturer": "Manufacturer (optional)",
+          "model": "Model (optional)",
+          "install_date": "Install date (optional)",
+          "last_serviced": "Last serviced date",
+          "base_interval_days": "Base maintenance interval (days)",
+          "notes": "Notes (optional)",
+          "runtime_sensor": "Runtime sensor (optional)",
+          "runtime_threshold": "Runtime threshold (optional)",
+          "usage_sensor": "Usage sensor (optional)",
+          "usage_threshold": "Usage threshold (optional)",
+          "battery_sensor": "Battery sensor (optional)",
+          "battery_threshold": "Battery threshold (optional)",
+          "enable_anode_task": "Enable anode rod inspection task",
+          "battery_interval_days": "Battery interval (days)"
+        }
+      }
+    },
+    "error": {
+      "required": "This field is required."
+    },
+    "abort": {
+      "single_instance_allowed": "HouseOps can only be configured once."
+    }
+  },
+  "options": {
+    "step": {
+      "add_asset": {
+        "title": "Add equipment",
+        "description": "Add another tracked equipment asset."
+      },
+      "edit_asset": {
+        "title": "Choose equipment",
+        "description": "Select an equipment asset to edit.",
+        "data": {
+          "asset_id": "Equipment"
+        }
+      },
+      "edit_asset_details": {
+        "title": "Edit equipment",
+        "description": "Update the selected equipment asset."
+      }
+    },
+    "abort": {
+      "asset_not_found": "The selected equipment asset was not found."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "maintenance_status": {
+        "name": "Maintenance Status"
+      },
+      "next_service_date": {
+        "name": "Next Service Date"
+      },
+      "days_remaining": {
+        "name": "Days Remaining"
+      },
+      "maintenance_reason": {
+        "name": "Maintenance Reason"
+      }
+    },
+    "binary_sensor": {
+      "due": {
+        "name": "Due"
+      }
+    },
+    "button": {
+      "mark_serviced": {
+        "name": "Mark Serviced"
+      },
+      "snooze": {
+        "name": "Snooze"
+      }
+    }
+  }
+}
