@@ -4,32 +4,45 @@
     "step": {
       "user": {
         "title": "Create HouseOps",
-        "description": "Create the HouseOps integration and add the first equipment asset.",
+        "description": "Create the HouseOps household maintenance workspace.",
         "data": {
-          "instance_name": "Instance name"
+          "instance_name": "Workspace name"
         }
       },
-      "asset": {
-        "title": "Add equipment",
-        "description": "Choose the equipment type, maintenance schedule, and any linked sensors.",
+      "add_equipment": {
+        "title": "Choose equipment type",
+        "description": "Select the kind of equipment you want HouseOps to manage first.",
+        "data": {
+          "equipment_type": "Equipment type"
+        }
+      },
+      "add_equipment_details": {
+        "title": "Create equipment item",
+        "description": "Create a ${equipment_label} item. ${equipment_description} The primary task is ${primary_task}.",
         "data": {
           "equipment_type": "Equipment type",
-          "name": "Name",
-          "area": "Area (optional)",
-          "manufacturer": "Manufacturer (optional)",
-          "model": "Model (optional)",
-          "install_date": "Install date (optional)",
-          "last_serviced": "Last serviced date",
-          "base_interval_days": "Base maintenance interval (days)",
-          "notes": "Notes (optional)",
-          "runtime_sensor": "Runtime sensor (optional)",
-          "runtime_threshold": "Runtime threshold (optional)",
-          "usage_sensor": "Usage sensor (optional)",
-          "usage_threshold": "Usage threshold (optional)",
-          "battery_sensor": "Battery sensor (optional)",
-          "battery_threshold": "Battery threshold (optional)",
-          "enable_anode_task": "Enable anode rod inspection task",
-          "battery_interval_days": "Battery interval (days)"
+          "name": "Equipment name",
+          "area_id": "Home Assistant area",
+          "custom_area": "Custom area name",
+          "power_type": "Power type",
+          "manufacturer": "Manufacturer",
+          "model": "Model",
+          "notes": "Notes",
+          "install_date": "Install date",
+          "last_serviced_date": "Last serviced date",
+          "next_due_override": "Next due date override",
+          "base_interval_days": "Primary task interval (days)",
+          "inspection_interval_days": "Inspection interval (days)",
+          "enable_anode_task": "Track anode rod inspection",
+          "anode_interval_days": "Anode rod interval (days)",
+          "runtime_sensor": "Runtime sensor",
+          "runtime_threshold": "Runtime threshold",
+          "usage_sensor": "Usage sensor",
+          "usage_threshold": "Usage threshold",
+          "battery_sensor": "Battery sensor",
+          "battery_threshold": "Battery threshold (%)",
+          "battery_interval_days": "Battery interval (days)",
+          "replacement_interval_days": "Replacement advisory interval (days)"
         }
       }
     },
@@ -42,24 +55,113 @@
   },
   "options": {
     "step": {
-      "add_asset": {
-        "title": "Add equipment",
-        "description": "Add another tracked equipment asset."
+      "init": {
+        "title": "Manage equipment",
+        "description": "Use this menu to review, add, edit, or remove equipment.\n\nCurrent equipment:\n${equipment_summary}"
       },
-      "edit_asset": {
-        "title": "Choose equipment",
-        "description": "Select an equipment asset to edit.",
+      "review_equipment": {
+        "title": "Review equipment",
+        "description": "Select an equipment item to review.\n\nCurrent equipment:\n${equipment_summary}",
         "data": {
           "asset_id": "Equipment"
         }
       },
-      "edit_asset_details": {
+      "review_equipment_details": {
+        "title": "Equipment summary",
+        "description": "${asset_summary}"
+      },
+      "edit_selected_equipment": {
+        "title": "Edit this equipment"
+      },
+      "add_equipment": {
+        "title": "Add equipment",
+        "description": "Choose what type of equipment you want to add.",
+        "data": {
+          "equipment_type": "Equipment type"
+        }
+      },
+      "add_equipment_details": {
+        "title": "Add equipment details",
+        "description": "Create a ${equipment_label} item. ${equipment_description} The primary task is ${primary_task}.",
+        "data": {
+          "equipment_type": "Equipment type",
+          "name": "Equipment name",
+          "area_id": "Home Assistant area",
+          "custom_area": "Custom area name",
+          "power_type": "Power type",
+          "manufacturer": "Manufacturer",
+          "model": "Model",
+          "notes": "Notes",
+          "install_date": "Install date",
+          "last_serviced_date": "Last serviced date",
+          "next_due_override": "Next due date override",
+          "base_interval_days": "Primary task interval (days)",
+          "inspection_interval_days": "Inspection interval (days)",
+          "enable_anode_task": "Track anode rod inspection",
+          "anode_interval_days": "Anode rod interval (days)",
+          "runtime_sensor": "Runtime sensor",
+          "runtime_threshold": "Runtime threshold",
+          "usage_sensor": "Usage sensor",
+          "usage_threshold": "Usage threshold",
+          "battery_sensor": "Battery sensor",
+          "battery_threshold": "Battery threshold (%)",
+          "battery_interval_days": "Battery interval (days)",
+          "replacement_interval_days": "Replacement advisory interval (days)"
+        }
+      },
+      "edit_equipment": {
         "title": "Edit equipment",
-        "description": "Update the selected equipment asset."
+        "description": "Select an equipment item to edit.\n\nCurrent equipment:\n${equipment_summary}",
+        "data": {
+          "asset_id": "Equipment"
+        }
+      },
+      "edit_equipment_details": {
+        "title": "Edit equipment details",
+        "description": "Update ${equipment_label}. ${equipment_description} The primary task is ${primary_task}.",
+        "data": {
+          "equipment_type": "Equipment type",
+          "name": "Equipment name",
+          "area_id": "Home Assistant area",
+          "custom_area": "Custom area name",
+          "power_type": "Power type",
+          "manufacturer": "Manufacturer",
+          "model": "Model",
+          "notes": "Notes",
+          "install_date": "Install date",
+          "last_serviced_date": "Last serviced date",
+          "next_due_override": "Next due date override",
+          "base_interval_days": "Primary task interval (days)",
+          "inspection_interval_days": "Inspection interval (days)",
+          "enable_anode_task": "Track anode rod inspection",
+          "anode_interval_days": "Anode rod interval (days)",
+          "runtime_sensor": "Runtime sensor",
+          "runtime_threshold": "Runtime threshold",
+          "usage_sensor": "Usage sensor",
+          "usage_threshold": "Usage threshold",
+          "battery_sensor": "Battery sensor",
+          "battery_threshold": "Battery threshold (%)",
+          "battery_interval_days": "Battery interval (days)",
+          "replacement_interval_days": "Replacement advisory interval (days)"
+        }
+      },
+      "remove_equipment": {
+        "title": "Remove equipment",
+        "description": "Select an equipment item to remove.\n\nCurrent equipment:\n${equipment_summary}",
+        "data": {
+          "asset_id": "Equipment"
+        }
+      },
+      "remove_selected_equipment": {
+        "title": "Confirm removal",
+        "description": "Remove this equipment item from HouseOps?\n\n${asset_summary}",
+        "data": {
+          "confirm_remove": "Yes, remove this equipment item"
+        }
       }
     },
     "abort": {
-      "asset_not_found": "The selected equipment asset was not found."
+      "asset_not_found": "The selected equipment item was not found."
     }
   },
   "entity": {

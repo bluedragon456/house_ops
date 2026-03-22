@@ -2,22 +2,19 @@ mark_serviced:
   fields:
     asset_id:
       name: Asset ID
-      description: The internal HouseOps asset identifier.
+      description: The internal HouseOps equipment identifier.
       required: true
-      example: furnace_main_hall
       selector:
         text:
     task_key:
       name: Task key
-      description: The task to mark complete, such as filter, flush, test, or battery.
+      description: The maintenance task to complete.
       required: true
-      example: filter
       selector:
         text:
     occurred_on:
-      name: Occurred on
-      description: Optional service date. Leave empty to log today.
-      example: "2026-03-21"
+      name: Completed on
+      description: Optional completion date. Leave empty to use today.
       selector:
         date:
 
@@ -25,20 +22,17 @@ snooze_task:
   fields:
     asset_id:
       name: Asset ID
-      description: The internal HouseOps asset identifier.
       required: true
       selector:
         text:
     task_key:
       name: Task key
-      description: The task to snooze.
       required: true
       selector:
         text:
     days:
       name: Snooze days
-      description: Optional number of days to snooze the task. Defaults to 7.
-      example: 7
+      description: How many days to snooze the task.
       selector:
         number:
           min: 1
@@ -46,29 +40,30 @@ snooze_task:
           mode: box
 
 recalculate:
-  description: Recompute maintenance states using current schedules and linked sensors.
+  description: Recalculate all HouseOps maintenance schedules immediately.
 
 add_asset:
   fields:
     equipment_type:
       name: Equipment type
-      description: Furnace, water heater, or fire alarms.
-      required: true
-      selector:
-        select:
-          options:
-            - furnace
-            - water_heater
-            - fire_alarms
-    name:
-      name: Asset name
-      description: Friendly name for this piece of equipment.
       required: true
       selector:
         text:
-    area:
-      name: Area
-      description: Optional Home Assistant area or plain-text location.
+    name:
+      name: Equipment name
+      required: true
+      selector:
+        text:
+    area_id:
+      name: Home Assistant area ID
+      selector:
+        text:
+    custom_area:
+      name: Custom area name
+      selector:
+        text:
+    power_type:
+      name: Power type
       selector:
         text:
     manufacturer:
@@ -83,18 +78,49 @@ add_asset:
       name: Install date
       selector:
         date:
-    last_serviced:
-      name: Last serviced
-      required: true
+    last_serviced_date:
+      name: Last serviced date
+      selector:
+        date:
+    next_due_override:
+      name: Next due override
       selector:
         date:
     base_interval_days:
-      name: Base maintenance interval
+      name: Primary task interval
       required: true
       selector:
         number:
           min: 1
           max: 3650
+          mode: box
+    inspection_interval_days:
+      name: Inspection interval
+      selector:
+        number:
+          min: 30
+          max: 3650
+          mode: box
+    anode_interval_days:
+      name: Anode interval
+      selector:
+        number:
+          min: 180
+          max: 3650
+          mode: box
+    battery_interval_days:
+      name: Battery interval
+      selector:
+        number:
+          min: 30
+          max: 730
+          mode: box
+    replacement_interval_days:
+      name: Replacement advisory interval
+      selector:
+        number:
+          min: 365
+          max: 7300
           mode: box
     notes:
       name: Notes
@@ -145,13 +171,6 @@ add_asset:
           max: 100
           mode: box
     enable_anode_task:
-      name: Enable anode task
+      name: Track anode rod inspection
       selector:
         boolean:
-    battery_interval_days:
-      name: Battery interval days
-      selector:
-        number:
-          min: 30
-          max: 730
-          mode: box

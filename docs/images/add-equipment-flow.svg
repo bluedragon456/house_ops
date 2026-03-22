@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900" role="img" aria-labelledby="title desc">
+  <title id="title">HouseOps add equipment example</title>
+  <desc id="desc">Illustrated example of the HouseOps add equipment flow in Home Assistant.</desc>
+  <rect width="1280" height="900" fill="#eef3f8" />
+  <rect x="120" y="44" width="1040" height="812" rx="26" fill="#ffffff" stroke="#d6e0ea" />
+  <text x="172" y="108" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" fill="#173552">Add Equipment</text>
+  <text x="172" y="142" font-family="Segoe UI, Arial, sans-serif" font-size="17" fill="#687d90">Choose the equipment type, maintenance schedule, and optional linked sensors.</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#29465f">
+    <text x="172" y="208">Equipment type</text>
+    <rect x="172" y="224" width="420" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="194" y="258">Furnace</text>
+
+    <text x="632" y="208">Name</text>
+    <rect x="632" y="224" width="356" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="654" y="258">Main HVAC</text>
+
+    <text x="172" y="332">Area</text>
+    <rect x="172" y="348" width="260" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="194" y="382">Hallway</text>
+
+    <text x="470" y="332">Manufacturer</text>
+    <rect x="470" y="348" width="240" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="492" y="382">Carrier</text>
+
+    <text x="748" y="332">Model</text>
+    <rect x="748" y="348" width="240" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="770" y="382">59TP6B</text>
+
+    <text x="172" y="456">Last serviced</text>
+    <rect x="172" y="472" width="260" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="194" y="506">2026-03-01</text>
+
+    <text x="470" y="456">Base maintenance interval (days)</text>
+    <rect x="470" y="472" width="240" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="492" y="506">90</text>
+
+    <text x="748" y="456">Install date</text>
+    <rect x="748" y="472" width="240" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="770" y="506">2024-09-18</text>
+
+    <text x="172" y="580">Runtime sensor</text>
+    <rect x="172" y="596" width="420" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="194" y="630">sensor.hvac_runtime_hours</text>
+
+    <text x="632" y="580">Runtime threshold</text>
+    <rect x="632" y="596" width="356" height="54" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="654" y="630">500</text>
+
+    <text x="172" y="704">Notes</text>
+    <rect x="172" y="720" width="816" height="74" rx="12" fill="#f7fafc" stroke="#cfdbe6" />
+    <text x="194" y="753">Track filter replacements and annual inspection from one dashboard.</text>
+  </g>
+
+  <rect x="836" y="804" width="152" height="34" rx="17" fill="#183b56" />
+  <text x="881" y="826" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#ffffff">Submit</text>
+
+  <rect x="1022" y="224" width="92" height="570" rx="18" fill="#f8fbff" stroke="#d9e4ee" />
+  <text x="1047" y="260" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#19324d">Tips</text>
+  <text x="1042" y="308" font-family="Segoe UI, Arial, sans-serif" font-size="15" fill="#577085">Use runtime or usage sensors to accelerate reminders when heavy use is detected.</text>
+  <text x="1042" y="414" font-family="Segoe UI, Arial, sans-serif" font-size="15" fill="#577085">Water heaters can add an anode rod inspection task.</text>
+  <text x="1042" y="520" font-family="Segoe UI, Arial, sans-serif" font-size="15" fill="#577085">Fire alarms can watch a linked battery sensor.</text>
+</svg>

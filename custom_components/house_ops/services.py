@@ -11,33 +11,37 @@ from .const import (
     ATTR_DAYS,
     ATTR_OCCURRED_ON,
     ATTR_TASK_KEY,
-    CONF_AREA,
+    CONF_ANODE_INTERVAL_DAYS,
+    CONF_AREA_ID,
     CONF_ASSET_ID,
     CONF_ASSET_NAME,
     CONF_BASE_INTERVAL_DAYS,
     CONF_BATTERY_INTERVAL_DAYS,
     CONF_BATTERY_SENSOR,
     CONF_BATTERY_THRESHOLD,
+    CONF_CUSTOM_AREA,
     CONF_ENABLE_ANODE_TASK,
     CONF_EQUIPMENT_TYPE,
     CONF_INSTALL_DATE,
-    CONF_LAST_SERVICED,
+    CONF_INSPECTION_INTERVAL_DAYS,
+    CONF_LAST_SERVICED_DATE,
     CONF_MANUFACTURER,
     CONF_MODEL,
+    CONF_NEXT_DUE_OVERRIDE,
     CONF_NOTES,
+    CONF_POWER_TYPE,
+    CONF_REPLACEMENT_INTERVAL_DAYS,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
     CONF_USAGE_SENSOR,
     CONF_USAGE_THRESHOLD,
     DOMAIN,
-    EQUIPMENT_TYPE_FIRE_ALARMS,
-    EQUIPMENT_TYPE_FURNACE,
-    EQUIPMENT_TYPE_WATER_HEATER,
     SERVICE_ADD_ASSET,
     SERVICE_MARK_SERVICED,
     SERVICE_RECALCULATE,
     SERVICE_SNOOZE_TASK,
 )
+from .equipment_catalog import get_supported_definitions
 from .registry import build_asset_from_input
 
 
@@ -62,25 +66,29 @@ def async_register_services(hass: HomeAssistant) -> None:
     )
     add_asset_schema = vol.Schema(
         {
-            vol.Required(CONF_EQUIPMENT_TYPE): vol.In(
-                [EQUIPMENT_TYPE_FURNACE, EQUIPMENT_TYPE_WATER_HEATER, EQUIPMENT_TYPE_FIRE_ALARMS]
-            ),
+            vol.Required(CONF_EQUIPMENT_TYPE): vol.In([definition.key for definition in get_supported_definitions()]),
             vol.Required(CONF_ASSET_NAME): cv.string,
-            vol.Optional(CONF_AREA): cv.string,
+            vol.Optional(CONF_AREA_ID): cv.string,
+            vol.Optional(CONF_CUSTOM_AREA): cv.string,
+            vol.Optional(CONF_POWER_TYPE): cv.string,
             vol.Optional(CONF_MANUFACTURER): cv.string,
             vol.Optional(CONF_MODEL): cv.string,
             vol.Optional(CONF_INSTALL_DATE): cv.date,
-            vol.Required(CONF_LAST_SERVICED): cv.date,
+            vol.Optional(CONF_LAST_SERVICED_DATE): cv.date,
+            vol.Optional(CONF_NEXT_DUE_OVERRIDE): cv.date,
             vol.Required(CONF_BASE_INTERVAL_DAYS): vol.Coerce(int),
+            vol.Optional(CONF_INSPECTION_INTERVAL_DAYS): vol.Coerce(int),
+            vol.Optional(CONF_ANODE_INTERVAL_DAYS): vol.Coerce(int),
+            vol.Optional(CONF_BATTERY_INTERVAL_DAYS): vol.Coerce(int),
+            vol.Optional(CONF_REPLACEMENT_INTERVAL_DAYS): vol.Coerce(int),
             vol.Optional(CONF_NOTES): cv.string,
             vol.Optional(CONF_RUNTIME_SENSOR): cv.entity_id,
-            vol.Optional(CONF_RUNTIME_THRESHOLD): vol.Coerce(float),
+            vol.Optional(CONF_RUNTIME_THRESHOLD): vol.Coerce(int),
             vol.Optional(CONF_USAGE_SENSOR): cv.entity_id,
-            vol.Optional(CONF_USAGE_THRESHOLD): vol.Coerce(float),
+            vol.Optional(CONF_USAGE_THRESHOLD): vol.Coerce(int),
             vol.Optional(CONF_BATTERY_SENSOR): cv.entity_id,
             vol.Optional(CONF_BATTERY_THRESHOLD): vol.Coerce(float),
             vol.Optional(CONF_ENABLE_ANODE_TASK): cv.boolean,
-            vol.Optional(CONF_BATTERY_INTERVAL_DAYS): vol.Coerce(int),
         }
     )
 
@@ -112,7 +120,11 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     async def async_handle_add_asset(call: ServiceCall) -> None:
         coordinator = _get_single_coordinator(hass)
-        asset = build_asset_from_input(dict(call.data), existing_assets=list(coordinator.data.assets.values()))
+        asset = build_asset_from_input(
+            hass,
+            dict(call.data),
+            existing_assets=list(coordinator.data.assets.values()),
+        )
         await coordinator.async_add_or_update_asset(asset)
 
     hass.services.async_register(DOMAIN, SERVICE_MARK_SERVICED, async_handle_mark_serviced, schema=mark_schema)

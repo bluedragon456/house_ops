@@ -6,7 +6,18 @@ from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import ATTR_LINKED_SENSORS, ATTR_REASON, ATTR_TASKS, ATTR_TASK_TITLE, MAINTENANCE_STATES
+from .const import (
+    ATTR_DUE_DETAILS,
+    ATTR_DUE_SOURCE,
+    ATTR_EQUIPMENT_TYPE,
+    ATTR_LINKED_SENSORS,
+    ATTR_OVERRIDE_ACTIVE,
+    ATTR_POWER_TYPE,
+    ATTR_REASON,
+    ATTR_TASKS,
+    ATTR_TASK_TITLE,
+    MAINTENANCE_STATES,
+)
 from .coordinator import HouseOpsConfigEntry
 from .entity import HouseOpsEntity, HouseOpsTaskEntity
 
@@ -61,6 +72,10 @@ class HouseOpsMaintenanceStatusSensor(HouseOpsEntity, SensorEntity):
     def extra_state_attributes(self) -> dict:
         return {
             ATTR_REASON: self.asset_state.reason,
+            ATTR_DUE_SOURCE: self.asset_state.due_source,
+            ATTR_DUE_DETAILS: self.asset_state.due_details,
+            ATTR_EQUIPMENT_TYPE: self.asset.equipment_type,
+            ATTR_POWER_TYPE: self.asset.power_type,
             ATTR_TASKS: {
                 key: {
                     "title": task.task_title,
@@ -68,6 +83,9 @@ class HouseOpsMaintenanceStatusSensor(HouseOpsEntity, SensorEntity):
                     "next_service_date": task.next_service_date.isoformat() if task.next_service_date else None,
                     "days_remaining": task.days_remaining,
                     ATTR_REASON: task.reason,
+                    ATTR_DUE_SOURCE: task.due_source,
+                    ATTR_DUE_DETAILS: task.due_details,
+                    ATTR_OVERRIDE_ACTIVE: task.override_active,
                 }
                 for key, task in self.asset_state.tasks.items()
             },
@@ -87,6 +105,13 @@ class HouseOpsNextServiceDateSensor(HouseOpsEntity, SensorEntity):
     @property
     def native_value(self):
         return self.asset_state.next_service_date
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {
+            ATTR_DUE_SOURCE: self.asset_state.due_source,
+            ATTR_DUE_DETAILS: self.asset_state.due_details,
+        }
 
 
 class HouseOpsDaysRemainingSensor(HouseOpsEntity, SensorEntity):
@@ -139,6 +164,9 @@ class HouseOpsTaskStatusSensor(HouseOpsTaskEntity, SensorEntity):
         return {
             ATTR_TASK_TITLE: self.task_state.task_title,
             ATTR_REASON: self.task_state.reason,
+            ATTR_DUE_SOURCE: self.task_state.due_source,
+            ATTR_DUE_DETAILS: self.task_state.due_details,
+            ATTR_OVERRIDE_ACTIVE: self.task_state.override_active,
             ATTR_LINKED_SENSORS: self.task_state.linked_sensors,
         }
 

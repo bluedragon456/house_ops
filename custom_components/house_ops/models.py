@@ -43,20 +43,22 @@ class MaintenanceTask:
     key: str
     title: str
     base_interval_days: int
-    last_serviced: date | None
+    last_serviced_date: date | None
+    next_due_override: date | None = None
     snoozed_until: date | None = None
     sensor_links: list[SensorLink] = field(default_factory=list)
-    usage_threshold: float | None = None
+    enabled: bool = True
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "key": self.key,
             "title": self.title,
             "base_interval_days": self.base_interval_days,
-            "last_serviced": self.last_serviced.isoformat() if self.last_serviced else None,
+            "last_serviced_date": self.last_serviced_date.isoformat() if self.last_serviced_date else None,
+            "next_due_override": self.next_due_override.isoformat() if self.next_due_override else None,
             "snoozed_until": self.snoozed_until.isoformat() if self.snoozed_until else None,
             "sensor_links": [link.as_dict() for link in self.sensor_links],
-            "usage_threshold": self.usage_threshold,
+            "enabled": self.enabled,
         }
 
     @classmethod
@@ -65,10 +67,11 @@ class MaintenanceTask:
             key=str(data["key"]),
             title=str(data["title"]),
             base_interval_days=int(data["base_interval_days"]),
-            last_serviced=_parse_date(data.get("last_serviced")),
+            last_serviced_date=_parse_date(data.get("last_serviced_date") or data.get("last_serviced")),
+            next_due_override=_parse_date(data.get("next_due_override")),
             snoozed_until=_parse_date(data.get("snoozed_until")),
             sensor_links=[SensorLink.from_dict(item) for item in data.get("sensor_links", [])],
-            usage_threshold=float(data["usage_threshold"]) if data.get("usage_threshold") is not None else None,
+            enabled=bool(data.get("enabled", True)),
         )
 
 
@@ -79,13 +82,15 @@ class Asset:
     asset_id: str
     name: str
     area: str | None
+    area_id: str | None
     equipment_type: str
+    power_type: str
     manufacturer: str | None
     model: str | None
     install_date: date | None
-    last_serviced: date | None
-    base_interval_days: int
+    last_serviced_date: date | None
     notes: str | None
+    primary_task_key: str
     tasks: list[MaintenanceTask]
 
     def as_dict(self) -> dict[str, Any]:
@@ -93,30 +98,35 @@ class Asset:
             "asset_id": self.asset_id,
             "name": self.name,
             "area": self.area,
+            "area_id": self.area_id,
             "equipment_type": self.equipment_type,
+            "power_type": self.power_type,
             "manufacturer": self.manufacturer,
             "model": self.model,
             "install_date": self.install_date.isoformat() if self.install_date else None,
-            "last_serviced": self.last_serviced.isoformat() if self.last_serviced else None,
-            "base_interval_days": self.base_interval_days,
+            "last_serviced_date": self.last_serviced_date.isoformat() if self.last_serviced_date else None,
             "notes": self.notes,
+            "primary_task_key": self.primary_task_key,
             "tasks": [task.as_dict() for task in self.tasks],
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Asset":
+        legacy_tasks = data.get("tasks", [])
         return cls(
             asset_id=str(data["asset_id"]),
             name=str(data["name"]),
             area=str(data["area"]) if data.get("area") else None,
+            area_id=str(data["area_id"]) if data.get("area_id") else None,
             equipment_type=str(data["equipment_type"]),
+            power_type=str(data.get("power_type", "wired")),
             manufacturer=str(data["manufacturer"]) if data.get("manufacturer") else None,
             model=str(data["model"]) if data.get("model") else None,
             install_date=_parse_date(data.get("install_date")),
-            last_serviced=_parse_date(data.get("last_serviced")),
-            base_interval_days=int(data["base_interval_days"]),
+            last_serviced_date=_parse_date(data.get("last_serviced_date") or data.get("last_serviced")),
             notes=str(data["notes"]) if data.get("notes") else None,
-            tasks=[MaintenanceTask.from_dict(item) for item in data.get("tasks", [])],
+            primary_task_key=str(data.get("primary_task_key") or _infer_primary_task_key(legacy_tasks)),
+            tasks=[MaintenanceTask.from_dict(item) for item in legacy_tasks],
         )
 
 
@@ -132,7 +142,10 @@ class ComputedTaskState:
     next_service_date: date | None
     days_remaining: int | None
     reason: str
+    due_source: str
+    due_details: str
     linked_sensors: list[str]
+    override_active: bool
 
 
 @dataclass(slots=True)
@@ -144,6 +157,8 @@ class ComputedAssetState:
     next_service_date: date | None
     days_remaining: int | None
     reason: str
+    due_source: str
+    due_details: str
     primary_task_key: str | None
     tasks: dict[str, ComputedTaskState]
 
@@ -169,3 +184,9 @@ def _parse_date(value: Any) -> date | None:
     if isinstance(value, date):
         return value
     return date.fromisoformat(str(value))
+
+
+def _infer_primary_task_key(tasks: list[dict[str, Any]]) -> str:
+    if tasks:
+        return str(tasks[0].get("key", "primary"))
+    return "primary"

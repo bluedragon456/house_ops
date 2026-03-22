@@ -11,7 +11,8 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
-    CONF_AREA,
+    CONF_ANODE_INTERVAL_DAYS,
+    CONF_AREA_ID,
     CONF_ASSETS,
     CONF_ASSET_ID,
     CONF_ASSET_NAME,
@@ -19,14 +20,20 @@ from .const import (
     CONF_BATTERY_INTERVAL_DAYS,
     CONF_BATTERY_SENSOR,
     CONF_BATTERY_THRESHOLD,
+    CONF_CONFIRM_REMOVE,
+    CONF_CUSTOM_AREA,
     CONF_ENABLE_ANODE_TASK,
     CONF_EQUIPMENT_TYPE,
     CONF_INSTALL_DATE,
+    CONF_INSPECTION_INTERVAL_DAYS,
     CONF_INSTANCE_NAME,
-    CONF_LAST_SERVICED,
+    CONF_LAST_SERVICED_DATE,
     CONF_MANUFACTURER,
     CONF_MODEL,
+    CONF_NEXT_DUE_OVERRIDE,
     CONF_NOTES,
+    CONF_POWER_TYPE,
+    CONF_REPLACEMENT_INTERVAL_DAYS,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
     CONF_USAGE_SENSOR,
@@ -34,324 +41,13 @@ from .const import (
     DEFAULT_BATTERY_THRESHOLD,
     DEFAULT_INSTANCE_NAME,
     DOMAIN,
-    EQUIPMENT_TYPE_FIRE_ALARMS,
-    EQUIPMENT_TYPE_FURNACE,
-    EQUIPMENT_TYPE_WATER_HEATER,
+    TASK_ANODE,
+    TASK_BATTERY,
+    TASK_INSPECTION,
+    TASK_REPLACEMENT,
 )
-from .registry import build_asset_from_input, dump_assets, find_asset, load_assets, upsert_asset
-
-_OPTIONAL_TEXT_FIELDS = (
-    CONF_AREA,
-    CONF_MANUFACTURER,
-    CONF_MODEL,
-    CONF_NOTES,
-)
-_OPTIONAL_ENTITY_FIELDS = (
-    CONF_RUNTIME_SENSOR,
-    CONF_USAGE_SENSOR,
-    CONF_BATTERY_SENSOR,
-)
-_OPTIONAL_DATE_FIELDS = (CONF_INSTALL_DATE,)
-_OPTIONAL_INT_FIELDS = (
-    CONF_RUNTIME_THRESHOLD,
-    CONF_USAGE_THRESHOLD,
-    CONF_BATTERY_INTERVAL_DAYS,
-)
-_OPTIONAL_FLOAT_FIELDS = (CONF_BATTERY_THRESHOLD,)
-
-
-def _asset_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Build the asset form schema with Home Assistant-safe defaults."""
-    defaults = dict(defaults or {})
-    equipment_type = str(defaults.get(CONF_EQUIPMENT_TYPE, EQUIPMENT_TYPE_FURNACE))
-
-    schema: dict[Any, Any] = {}
-    _add_required(
-        schema,
-        CONF_EQUIPMENT_TYPE,
-        selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=[
-                    selector.SelectOptionDict(value=EQUIPMENT_TYPE_FURNACE, label="Furnace"),
-                    selector.SelectOptionDict(value=EQUIPMENT_TYPE_WATER_HEATER, label="Water heater"),
-                    selector.SelectOptionDict(value=EQUIPMENT_TYPE_FIRE_ALARMS, label="Fire alarms"),
-                ],
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        ),
-        default=equipment_type,
-    )
-    _add_required(
-        schema,
-        CONF_ASSET_NAME,
-        selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
-        default=str(defaults.get(CONF_ASSET_NAME, "")),
-    )
-
-    _add_optional_text(schema, CONF_AREA, defaults.get(CONF_AREA))
-    _add_optional_text(schema, CONF_MANUFACTURER, defaults.get(CONF_MANUFACTURER))
-    _add_optional_text(schema, CONF_MODEL, defaults.get(CONF_MODEL))
-    _add_optional_date(schema, CONF_INSTALL_DATE, defaults.get(CONF_INSTALL_DATE))
-    _add_required(
-        schema,
-        CONF_LAST_SERVICED,
-        selector.DateSelector(),
-        default=_normalize_date_default(defaults.get(CONF_LAST_SERVICED)) or date.today(),
-    )
-    _add_required(
-        schema,
-        CONF_BASE_INTERVAL_DAYS,
-        _number_selector(min_value=1, max_value=3650, step=1),
-        default=int(defaults.get(CONF_BASE_INTERVAL_DAYS, _default_base_interval(equipment_type))),
-    )
-    _add_optional_text(
-        schema,
-        CONF_NOTES,
-        defaults.get(CONF_NOTES),
-        config=selector.TextSelectorConfig(multiline=True, type=selector.TextSelectorType.TEXT),
-    )
-    _add_optional_entity(schema, CONF_RUNTIME_SENSOR, defaults.get(CONF_RUNTIME_SENSOR))
-    _add_optional_number(
-        schema,
-        CONF_RUNTIME_THRESHOLD,
-        defaults.get(CONF_RUNTIME_THRESHOLD),
-        min_value=0,
-        max_value=100000,
-        step=1,
-    )
-    _add_optional_entity(schema, CONF_USAGE_SENSOR, defaults.get(CONF_USAGE_SENSOR))
-    _add_optional_number(
-        schema,
-        CONF_USAGE_THRESHOLD,
-        defaults.get(CONF_USAGE_THRESHOLD),
-        min_value=0,
-        max_value=100000,
-        step=1,
-    )
-    _add_optional_entity(schema, CONF_BATTERY_SENSOR, defaults.get(CONF_BATTERY_SENSOR))
-    _add_optional_number(
-        schema,
-        CONF_BATTERY_THRESHOLD,
-        defaults.get(CONF_BATTERY_THRESHOLD, DEFAULT_BATTERY_THRESHOLD),
-        min_value=1,
-        max_value=100,
-        step=1,
-    )
-    _add_optional(
-        schema,
-        CONF_ENABLE_ANODE_TASK,
-        selector.BooleanSelector(),
-        default=bool(defaults.get(CONF_ENABLE_ANODE_TASK, equipment_type == EQUIPMENT_TYPE_WATER_HEATER)),
-    )
-    _add_optional_number(
-        schema,
-        CONF_BATTERY_INTERVAL_DAYS,
-        defaults.get(CONF_BATTERY_INTERVAL_DAYS, 180),
-        min_value=30,
-        max_value=730,
-        step=1,
-    )
-
-    return vol.Schema(schema)
-
-
-def _default_base_interval(equipment_type: str) -> int:
-    if equipment_type == EQUIPMENT_TYPE_FURNACE:
-        return 90
-    if equipment_type == EQUIPMENT_TYPE_WATER_HEATER:
-        return 365
-    if equipment_type == EQUIPMENT_TYPE_FIRE_ALARMS:
-        return 30
-    return 90
-
-
-def _asset_defaults_from_asset(asset) -> dict[str, Any]:
-    """Flatten an asset into selector-safe defaults."""
-    defaults: dict[str, Any] = {
-        CONF_ASSET_NAME: asset.name,
-        CONF_AREA: asset.area,
-        CONF_EQUIPMENT_TYPE: asset.equipment_type,
-        CONF_MANUFACTURER: asset.manufacturer,
-        CONF_MODEL: asset.model,
-        CONF_INSTALL_DATE: asset.install_date,
-        CONF_LAST_SERVICED: asset.last_serviced or date.today(),
-        CONF_BASE_INTERVAL_DAYS: asset.base_interval_days,
-        CONF_NOTES: asset.notes,
-        CONF_RUNTIME_SENSOR: None,
-        CONF_RUNTIME_THRESHOLD: None,
-        CONF_USAGE_SENSOR: None,
-        CONF_USAGE_THRESHOLD: None,
-        CONF_BATTERY_SENSOR: None,
-        CONF_BATTERY_THRESHOLD: DEFAULT_BATTERY_THRESHOLD,
-        CONF_ENABLE_ANODE_TASK: any(task.key == "anode" for task in asset.tasks),
-        CONF_BATTERY_INTERVAL_DAYS: next(
-            (task.base_interval_days for task in asset.tasks if task.key == "battery"),
-            180,
-        ),
-    }
-    for task in asset.tasks:
-        for link in task.sensor_links:
-            if link.role == "runtime":
-                defaults[CONF_RUNTIME_SENSOR] = link.entity_id
-                defaults[CONF_RUNTIME_THRESHOLD] = link.threshold
-            elif link.role == "usage":
-                defaults[CONF_USAGE_SENSOR] = link.entity_id
-                defaults[CONF_USAGE_THRESHOLD] = link.threshold
-            elif link.role == "battery":
-                defaults[CONF_BATTERY_SENSOR] = link.entity_id
-                defaults[CONF_BATTERY_THRESHOLD] = link.threshold or DEFAULT_BATTERY_THRESHOLD
-    return defaults
-
-
-def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Normalize config-flow input before asset creation."""
-    cleaned = dict(user_input)
-
-    cleaned[CONF_ASSET_NAME] = str(cleaned[CONF_ASSET_NAME]).strip()
-    cleaned[CONF_EQUIPMENT_TYPE] = str(cleaned[CONF_EQUIPMENT_TYPE])
-    cleaned[CONF_BASE_INTERVAL_DAYS] = int(cleaned[CONF_BASE_INTERVAL_DAYS])
-    cleaned[CONF_LAST_SERVICED] = _normalize_date_value(cleaned[CONF_LAST_SERVICED])
-    cleaned[CONF_ENABLE_ANODE_TASK] = bool(cleaned.get(CONF_ENABLE_ANODE_TASK, False))
-
-    for key in _OPTIONAL_TEXT_FIELDS:
-        value = cleaned.get(key)
-        if value is None:
-            cleaned.pop(key, None)
-            continue
-        text = str(value).strip()
-        if text:
-            cleaned[key] = text
-        else:
-            cleaned.pop(key, None)
-
-    for key in _OPTIONAL_ENTITY_FIELDS:
-        value = cleaned.get(key)
-        if value:
-            cleaned[key] = str(value)
-        else:
-            cleaned.pop(key, None)
-
-    for key in _OPTIONAL_DATE_FIELDS:
-        value = cleaned.get(key)
-        normalized = _normalize_date_value(value)
-        if normalized is None:
-            cleaned.pop(key, None)
-        else:
-            cleaned[key] = normalized
-
-    for key in _OPTIONAL_INT_FIELDS:
-        value = cleaned.get(key)
-        normalized = _normalize_number_value(value, cast=int)
-        if normalized is None:
-            cleaned.pop(key, None)
-        else:
-            cleaned[key] = normalized
-
-    for key in _OPTIONAL_FLOAT_FIELDS:
-        value = cleaned.get(key)
-        normalized = _normalize_number_value(value, cast=float)
-        if normalized is None:
-            cleaned.pop(key, None)
-        else:
-            cleaned[key] = normalized
-
-    return cleaned
-
-
-def _normalize_date_default(value: Any) -> date | None:
-    """Return a date default Home Assistant can render."""
-    return _normalize_date_value(value)
-
-
-def _normalize_date_value(value: Any) -> date | None:
-    """Normalize date selector values from HA."""
-    if value in (None, ""):
-        return None
-    if isinstance(value, date):
-        return value
-    return date.fromisoformat(str(value))
-
-
-def _normalize_number_value(value: Any, *, cast: type[int] | type[float]) -> int | float | None:
-    """Normalize optional numeric fields from HA selectors."""
-    if value in (None, ""):
-        return None
-    return cast(value)
-
-
-def _number_selector(*, min_value: int | float, max_value: int | float, step: int | float):
-    return selector.NumberSelector(
-        selector.NumberSelectorConfig(
-            min=min_value,
-            max=max_value,
-            step=step,
-            mode=selector.NumberSelectorMode.BOX,
-        )
-    )
-
-
-def _entity_selector() -> selector.EntitySelector:
-    return selector.EntitySelector(
-        selector.EntitySelectorConfig(domain=["sensor", "number", "input_number"])
-    )
-
-
-def _battery_entity_selector() -> selector.EntitySelector:
-    return selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor", "number"]))
-
-
-def _add_required(schema: dict[Any, Any], key: str, field_selector: Any, *, default: Any) -> None:
-    schema[vol.Required(key, default=default)] = field_selector
-
-
-def _add_optional(schema: dict[Any, Any], key: str, field_selector: Any, *, default: Any | None = None) -> None:
-    if default is None:
-        schema[vol.Optional(key)] = field_selector
-        return
-    schema[vol.Optional(key, default=default)] = field_selector
-
-
-def _add_optional_text(
-    schema: dict[Any, Any],
-    key: str,
-    default: Any,
-    *,
-    config: selector.TextSelectorConfig | None = None,
-) -> None:
-    text_selector = selector.TextSelector(
-        config or selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-    )
-    normalized = str(default).strip() if default not in (None, "") else None
-    _add_optional(schema, key, text_selector, default=normalized)
-
-
-def _add_optional_date(schema: dict[Any, Any], key: str, default: Any) -> None:
-    _add_optional(schema, key, selector.DateSelector(), default=_normalize_date_default(default))
-
-
-def _add_optional_entity(schema: dict[Any, Any], key: str, default: Any) -> None:
-    entity_selector = _battery_entity_selector() if key == CONF_BATTERY_SENSOR else _entity_selector()
-    normalized = str(default) if default not in (None, "") else None
-    _add_optional(schema, key, entity_selector, default=normalized)
-
-
-def _add_optional_number(
-    schema: dict[Any, Any],
-    key: str,
-    default: Any,
-    *,
-    min_value: int | float,
-    max_value: int | float,
-    step: int | float,
-) -> None:
-    _add_optional(
-        schema,
-        key,
-        _number_selector(min_value=min_value, max_value=max_value, step=step),
-        default=_normalize_number_value(default, cast=float if isinstance(default, float) else int)
-        if default not in (None, "")
-        else None,
-    )
+from .equipment_catalog import POWER_TYPE_LABELS, get_equipment_definition, get_supported_definitions, supports_battery
+from .registry import asset_summary, build_asset_from_input, dump_assets, find_asset, load_assets, remove_asset, upsert_asset
 
 
 class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -361,6 +57,7 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._instance_name = DEFAULT_INSTANCE_NAME
+        self._selected_equipment_type: str | None = None
 
     @staticmethod
     @callback
@@ -374,80 +71,32 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             instance_name = str(user_input[CONF_INSTANCE_NAME]).strip()
             self._instance_name = instance_name or DEFAULT_INSTANCE_NAME
-            return await self.async_step_asset()
+            return await self.async_step_add_equipment()
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_INSTANCE_NAME, default=DEFAULT_INSTANCE_NAME): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
+                    vol.Required(CONF_INSTANCE_NAME, default=DEFAULT_INSTANCE_NAME): selector.TextSelector(),
                 }
             ),
         )
 
-    async def async_step_asset(self, user_input: dict[str, Any] | None = None):
-        errors: dict[str, str] = {}
+    async def async_step_add_equipment(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
-            cleaned = _sanitize_asset_input(user_input)
-            if not cleaned[CONF_ASSET_NAME]:
-                errors[CONF_ASSET_NAME] = "required"
-            else:
-                asset = build_asset_from_input(cleaned)
-                return self.async_create_entry(
-                    title=self._instance_name,
-                    data={
-                        CONF_INSTANCE_NAME: self._instance_name,
-                        CONF_ASSETS: dump_assets([asset]),
-                    },
-                )
+            self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
+            return await self.async_step_add_equipment_details()
 
-        defaults = {
-            CONF_EQUIPMENT_TYPE: EQUIPMENT_TYPE_FURNACE,
-            CONF_LAST_SERVICED: date.today(),
-            CONF_BASE_INTERVAL_DAYS: 90,
-            CONF_BATTERY_THRESHOLD: DEFAULT_BATTERY_THRESHOLD,
-            CONF_BATTERY_INTERVAL_DAYS: 180,
-        }
-        return self.async_show_form(step_id="asset", data_schema=_asset_schema(defaults), errors=errors)
-
-
-class HouseOpsOptionsFlow(config_entries.OptionsFlow):
-    """Manage assets inside HouseOps."""
-
-    def __init__(self, config_entry) -> None:
-        self._config_entry = config_entry
-        self._selected_asset_id: str | None = None
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        assets = load_assets(
-            self._config_entry.options.get(CONF_ASSETS, self._config_entry.data.get(CONF_ASSETS, []))
-        )
-        menu = ["add_asset"]
-        if assets:
-            menu.append("edit_asset")
-        return self.async_show_menu(step_id="init", menu_options=menu)
-
-    async def async_step_add_asset(self, user_input: dict[str, Any] | None = None):
-        return await self._async_handle_asset_form(user_input, existing_asset=None)
-
-    async def async_step_edit_asset(self, user_input: dict[str, Any] | None = None):
-        assets = load_assets(
-            self._config_entry.options.get(CONF_ASSETS, self._config_entry.data.get(CONF_ASSETS, []))
-        )
-        if user_input is not None:
-            self._selected_asset_id = str(user_input[CONF_ASSET_ID])
-            return await self.async_step_edit_asset_details()
-
-        options = [selector.SelectOptionDict(value=asset.asset_id, label=asset.name) for asset in assets]
         return self.async_show_form(
-            step_id="edit_asset",
+            step_id="add_equipment",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ASSET_ID): selector.SelectSelector(
+                    vol.Required(CONF_EQUIPMENT_TYPE): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=options,
+                            options=[
+                                selector.SelectOptionDict(value=definition.key, label=definition.label)
+                                for definition in get_supported_definitions()
+                            ],
                             mode=selector.SelectSelectorMode.DROPDOWN,
                         )
                     )
@@ -455,19 +104,8 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
             ),
         )
 
-    async def async_step_edit_asset_details(self, user_input: dict[str, Any] | None = None):
-        assets = load_assets(
-            self._config_entry.options.get(CONF_ASSETS, self._config_entry.data.get(CONF_ASSETS, []))
-        )
-        asset = find_asset(assets, self._selected_asset_id or "")
-        if asset is None:
-            return self.async_abort(reason="asset_not_found")
-        return await self._async_handle_asset_form(user_input, existing_asset=asset)
-
-    async def _async_handle_asset_form(self, user_input: dict[str, Any] | None, existing_asset=None):
-        assets = load_assets(
-            self._config_entry.options.get(CONF_ASSETS, self._config_entry.data.get(CONF_ASSETS, []))
-        )
+    async def async_step_add_equipment_details(self, user_input: dict[str, Any] | None = None):
+        definition = get_equipment_definition(self._selected_equipment_type or get_supported_definitions()[0].key)
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -475,24 +113,425 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
             if not cleaned[CONF_ASSET_NAME]:
                 errors[CONF_ASSET_NAME] = "required"
             else:
-                asset = build_asset_from_input(
-                    cleaned,
-                    existing_assets=assets,
-                    existing_asset=existing_asset,
+                asset = build_asset_from_input(self.hass, cleaned)
+                return self.async_create_entry(
+                    title=self._instance_name,
+                    data={CONF_INSTANCE_NAME: self._instance_name, CONF_ASSETS: dump_assets([asset])},
                 )
+
+        defaults = _defaults_for_new_asset(definition.key)
+        return self.async_show_form(
+            step_id="add_equipment_details",
+            data_schema=_build_asset_schema(self.hass, definition.key, defaults),
+            errors=errors,
+            description_placeholders={
+                "equipment_label": definition.label,
+                "equipment_description": definition.description,
+                "primary_task": _primary_task_label(definition.key),
+            },
+        )
+
+
+class HouseOpsOptionsFlow(config_entries.OptionsFlow):
+    """Manage equipment inside HouseOps."""
+
+    def __init__(self, config_entry) -> None:
+        self._config_entry = config_entry
+        self._selected_asset_id: str | None = None
+        self._selected_equipment_type: str | None = None
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["review_equipment", "add_equipment", "edit_equipment", "remove_equipment"],
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+        )
+
+    async def async_step_review_equipment(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        if not assets:
+            return await self.async_step_init()
+        if user_input is not None:
+            self._selected_asset_id = str(user_input[CONF_ASSET_ID])
+            return await self.async_step_review_equipment_details()
+        return self.async_show_form(
+            step_id="review_equipment",
+            data_schema=_asset_select_schema(assets),
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+        )
+
+    async def async_step_review_equipment_details(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        asset = find_asset(assets, self._selected_asset_id or "")
+        if asset is None:
+            return self.async_abort(reason="asset_not_found")
+        return self.async_show_menu(
+            step_id="review_equipment_details",
+            menu_options=["edit_selected_equipment", "remove_selected_equipment"],
+            description_placeholders={"asset_summary": asset_summary(asset)},
+        )
+
+    async def async_step_add_equipment(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
+            return await self.async_step_add_equipment_details()
+        return self.async_show_form(
+            step_id="add_equipment",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_EQUIPMENT_TYPE): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                selector.SelectOptionDict(value=definition.key, label=definition.label)
+                                for definition in get_supported_definitions()
+                            ],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_add_equipment_details(self, user_input: dict[str, Any] | None = None):
+        definition = get_equipment_definition(self._selected_equipment_type or get_supported_definitions()[0].key)
+        assets = _load_entry_assets(self._config_entry)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            cleaned = _sanitize_asset_input(user_input)
+            if not cleaned[CONF_ASSET_NAME]:
+                errors[CONF_ASSET_NAME] = "required"
+            else:
+                asset = build_asset_from_input(self.hass, cleaned, existing_assets=assets)
                 updated_assets = upsert_asset(assets, asset)
                 return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
-
-        defaults = (
-            _asset_defaults_from_asset(existing_asset)
-            if existing_asset
-            else {
-                CONF_EQUIPMENT_TYPE: EQUIPMENT_TYPE_FURNACE,
-                CONF_LAST_SERVICED: date.today(),
-                CONF_BASE_INTERVAL_DAYS: 90,
-                CONF_BATTERY_THRESHOLD: DEFAULT_BATTERY_THRESHOLD,
-                CONF_BATTERY_INTERVAL_DAYS: 180,
-            }
+        return self.async_show_form(
+            step_id="add_equipment_details",
+            data_schema=_build_asset_schema(self.hass, definition.key, _defaults_for_new_asset(definition.key)),
+            errors=errors,
+            description_placeholders={
+                "equipment_label": definition.label,
+                "equipment_description": definition.description,
+                "primary_task": _primary_task_label(definition.key),
+            },
         )
-        step_id = "edit_asset_details" if existing_asset else "add_asset"
-        return self.async_show_form(step_id=step_id, data_schema=_asset_schema(defaults), errors=errors)
+
+    async def async_step_edit_equipment(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        if not assets:
+            return await self.async_step_init()
+        if user_input is not None:
+            self._selected_asset_id = str(user_input[CONF_ASSET_ID])
+            return await self.async_step_edit_equipment_details()
+        return self.async_show_form(
+            step_id="edit_equipment",
+            data_schema=_asset_select_schema(assets),
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+        )
+
+    async def async_step_edit_selected_equipment(self, user_input: dict[str, Any] | None = None):
+        return await self.async_step_edit_equipment_details()
+
+    async def async_step_edit_equipment_details(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        asset = find_asset(assets, self._selected_asset_id or "")
+        if asset is None:
+            return self.async_abort(reason="asset_not_found")
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            cleaned = _sanitize_asset_input(user_input)
+            if not cleaned[CONF_ASSET_NAME]:
+                errors[CONF_ASSET_NAME] = "required"
+            else:
+                updated = build_asset_from_input(
+                    self.hass,
+                    cleaned,
+                    existing_assets=assets,
+                    existing_asset=asset,
+                )
+                updated_assets = upsert_asset(assets, updated)
+                return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
+
+        return self.async_show_form(
+            step_id="edit_equipment_details",
+            data_schema=_build_asset_schema(self.hass, asset.equipment_type, _defaults_from_asset(asset)),
+            errors=errors,
+            description_placeholders={
+                "equipment_label": asset.name,
+                "equipment_description": asset_summary(asset),
+                "primary_task": _primary_task_label(asset.equipment_type),
+            },
+        )
+
+    async def async_step_remove_equipment(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        if not assets:
+            return await self.async_step_init()
+        if user_input is not None:
+            self._selected_asset_id = str(user_input[CONF_ASSET_ID])
+            return await self.async_step_remove_selected_equipment()
+        return self.async_show_form(
+            step_id="remove_equipment",
+            data_schema=_asset_select_schema(assets),
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+        )
+
+    async def async_step_remove_selected_equipment(self, user_input: dict[str, Any] | None = None):
+        assets = _load_entry_assets(self._config_entry)
+        asset = find_asset(assets, self._selected_asset_id or "")
+        if asset is None:
+            return self.async_abort(reason="asset_not_found")
+        if user_input is not None and user_input.get(CONF_CONFIRM_REMOVE):
+            updated_assets = remove_asset(assets, asset.asset_id)
+            return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
+        return self.async_show_form(
+            step_id="remove_selected_equipment",
+            data_schema=vol.Schema({vol.Required(CONF_CONFIRM_REMOVE, default=False): selector.BooleanSelector()}),
+            description_placeholders={"asset_summary": asset_summary(asset)},
+        )
+
+
+def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> vol.Schema:
+    definition = get_equipment_definition(equipment_type)
+    power_type = str(defaults.get(CONF_POWER_TYPE, definition.default_power_type))
+    schema: dict[Any, Any] = {}
+
+    _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector(), default=equipment_type)
+    _add_required(schema, CONF_ASSET_NAME, selector.TextSelector(), default=defaults.get(CONF_ASSET_NAME, ""))
+    _add_optional(schema, CONF_AREA_ID, selector.AreaSelector(), default=defaults.get(CONF_AREA_ID))
+    _add_optional(schema, CONF_CUSTOM_AREA, selector.TextSelector(), default=defaults.get(CONF_CUSTOM_AREA))
+
+    if len(definition.supported_power_types) > 1:
+        _add_required(schema, CONF_POWER_TYPE, _power_selector(definition), default=power_type)
+
+    _add_optional(schema, CONF_MANUFACTURER, selector.TextSelector(), default=defaults.get(CONF_MANUFACTURER))
+    _add_optional(schema, CONF_MODEL, selector.TextSelector(), default=defaults.get(CONF_MODEL))
+    _add_optional(schema, CONF_NOTES, selector.TextSelector(selector.TextSelectorConfig(multiline=True)), default=defaults.get(CONF_NOTES))
+    _add_optional(schema, CONF_INSTALL_DATE, selector.DateSelector(), default=defaults.get(CONF_INSTALL_DATE))
+    _add_optional(schema, CONF_LAST_SERVICED_DATE, selector.DateSelector(), default=defaults.get(CONF_LAST_SERVICED_DATE))
+    _add_optional(schema, CONF_NEXT_DUE_OVERRIDE, selector.DateSelector(), default=defaults.get(CONF_NEXT_DUE_OVERRIDE))
+    _add_required(schema, CONF_BASE_INTERVAL_DAYS, _number_selector(1, 3650, 1), default=defaults[CONF_BASE_INTERVAL_DAYS])
+
+    if _task_exists(definition.key, TASK_INSPECTION):
+        _add_optional(schema, CONF_INSPECTION_INTERVAL_DAYS, _number_selector(30, 3650, 1), default=defaults.get(CONF_INSPECTION_INTERVAL_DAYS))
+
+    if _task_exists(definition.key, TASK_ANODE):
+        _add_optional(schema, CONF_ENABLE_ANODE_TASK, selector.BooleanSelector(), default=defaults.get(CONF_ENABLE_ANODE_TASK, False))
+        if defaults.get(CONF_ENABLE_ANODE_TASK):
+            _add_optional(schema, CONF_ANODE_INTERVAL_DAYS, _number_selector(180, 3650, 1), default=defaults.get(CONF_ANODE_INTERVAL_DAYS))
+
+    if _show_sensor_section(definition.key):
+        _add_optional(schema, CONF_RUNTIME_SENSOR, _entity_selector(["sensor", "number", "input_number"]), default=defaults.get(CONF_RUNTIME_SENSOR))
+        _add_optional(schema, CONF_RUNTIME_THRESHOLD, _number_selector(0, 100000, 1), default=defaults.get(CONF_RUNTIME_THRESHOLD))
+        _add_optional(schema, CONF_USAGE_SENSOR, _entity_selector(["sensor", "number", "input_number"]), default=defaults.get(CONF_USAGE_SENSOR))
+        _add_optional(schema, CONF_USAGE_THRESHOLD, _number_selector(0, 100000, 1), default=defaults.get(CONF_USAGE_THRESHOLD))
+
+    if supports_battery(definition, power_type):
+        _add_optional(schema, CONF_BATTERY_SENSOR, _entity_selector(["sensor", "number"]), default=defaults.get(CONF_BATTERY_SENSOR))
+        _add_optional(schema, CONF_BATTERY_THRESHOLD, _number_selector(1, 100, 1), default=defaults.get(CONF_BATTERY_THRESHOLD, DEFAULT_BATTERY_THRESHOLD))
+        _add_optional(schema, CONF_BATTERY_INTERVAL_DAYS, _number_selector(30, 730, 1), default=defaults.get(CONF_BATTERY_INTERVAL_DAYS))
+
+    if _task_exists(definition.key, TASK_REPLACEMENT):
+        _add_optional(schema, CONF_REPLACEMENT_INTERVAL_DAYS, _number_selector(365, 7300, 1), default=defaults.get(CONF_REPLACEMENT_INTERVAL_DAYS))
+
+    return vol.Schema(schema)
+
+
+def _defaults_for_new_asset(equipment_type: str) -> dict[str, Any]:
+    definition = get_equipment_definition(equipment_type)
+    defaults: dict[str, Any] = {
+        CONF_EQUIPMENT_TYPE: equipment_type,
+        CONF_BASE_INTERVAL_DAYS: next(task.default_interval_days for task in definition.tasks if task.key == definition.primary_task_key),
+        CONF_POWER_TYPE: definition.default_power_type,
+        CONF_BATTERY_THRESHOLD: DEFAULT_BATTERY_THRESHOLD,
+    }
+    for task in definition.tasks:
+        if task.key == TASK_INSPECTION:
+            defaults[CONF_INSPECTION_INTERVAL_DAYS] = task.default_interval_days
+        elif task.key == TASK_ANODE:
+            defaults[CONF_ENABLE_ANODE_TASK] = False
+            defaults[CONF_ANODE_INTERVAL_DAYS] = task.default_interval_days
+        elif task.key == TASK_BATTERY:
+            defaults[CONF_BATTERY_INTERVAL_DAYS] = task.default_interval_days
+        elif task.key == TASK_REPLACEMENT:
+            defaults[CONF_REPLACEMENT_INTERVAL_DAYS] = task.default_interval_days
+    return defaults
+
+
+def _defaults_from_asset(asset) -> dict[str, Any]:
+    defaults = {
+        CONF_EQUIPMENT_TYPE: asset.equipment_type,
+        CONF_ASSET_NAME: asset.name,
+        CONF_AREA_ID: asset.area_id,
+        CONF_CUSTOM_AREA: None if asset.area_id else asset.area,
+        CONF_POWER_TYPE: asset.power_type,
+        CONF_MANUFACTURER: asset.manufacturer,
+        CONF_MODEL: asset.model,
+        CONF_NOTES: asset.notes,
+        CONF_INSTALL_DATE: asset.install_date,
+        CONF_LAST_SERVICED_DATE: asset.last_serviced_date,
+        CONF_BASE_INTERVAL_DAYS: next(task.base_interval_days for task in asset.tasks if task.key == asset.primary_task_key),
+        CONF_NEXT_DUE_OVERRIDE: next(
+            (task.next_due_override for task in asset.tasks if task.key == asset.primary_task_key),
+            None,
+        ),
+    }
+    for task in asset.tasks:
+        if task.key == TASK_INSPECTION:
+            defaults[CONF_INSPECTION_INTERVAL_DAYS] = task.base_interval_days
+        elif task.key == TASK_ANODE:
+            defaults[CONF_ENABLE_ANODE_TASK] = True
+            defaults[CONF_ANODE_INTERVAL_DAYS] = task.base_interval_days
+        elif task.key == TASK_BATTERY:
+            defaults[CONF_BATTERY_INTERVAL_DAYS] = task.base_interval_days
+            if task.sensor_links:
+                defaults[CONF_BATTERY_SENSOR] = task.sensor_links[0].entity_id
+                defaults[CONF_BATTERY_THRESHOLD] = task.sensor_links[0].threshold
+        elif task.key == TASK_REPLACEMENT:
+            defaults[CONF_REPLACEMENT_INTERVAL_DAYS] = task.base_interval_days
+        for link in task.sensor_links:
+            if link.role == "runtime":
+                defaults[CONF_RUNTIME_SENSOR] = link.entity_id
+                defaults[CONF_RUNTIME_THRESHOLD] = link.threshold
+            elif link.role == "usage":
+                defaults[CONF_USAGE_SENSOR] = link.entity_id
+                defaults[CONF_USAGE_THRESHOLD] = link.threshold
+    return defaults
+
+
+def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    cleaned = dict(user_input)
+    cleaned[CONF_ASSET_NAME] = str(cleaned.get(CONF_ASSET_NAME, "")).strip()
+    cleaned[CONF_EQUIPMENT_TYPE] = str(cleaned[CONF_EQUIPMENT_TYPE])
+
+    for key in (
+        CONF_MANUFACTURER,
+        CONF_MODEL,
+        CONF_NOTES,
+        CONF_CUSTOM_AREA,
+        CONF_AREA_ID,
+        CONF_RUNTIME_SENSOR,
+        CONF_USAGE_SENSOR,
+        CONF_BATTERY_SENSOR,
+    ):
+        value = cleaned.get(key)
+        if value in (None, ""):
+            cleaned.pop(key, None)
+        else:
+            cleaned[key] = str(value).strip()
+
+    for key in (CONF_INSTALL_DATE, CONF_LAST_SERVICED_DATE, CONF_NEXT_DUE_OVERRIDE):
+        value = cleaned.get(key)
+        if value in (None, ""):
+            cleaned.pop(key, None)
+        elif not isinstance(value, date):
+            cleaned[key] = date.fromisoformat(str(value))
+
+    for key in (
+        CONF_BASE_INTERVAL_DAYS,
+        CONF_INSPECTION_INTERVAL_DAYS,
+        CONF_ANODE_INTERVAL_DAYS,
+        CONF_BATTERY_INTERVAL_DAYS,
+        CONF_REPLACEMENT_INTERVAL_DAYS,
+        CONF_RUNTIME_THRESHOLD,
+        CONF_USAGE_THRESHOLD,
+    ):
+        value = cleaned.get(key)
+        if value in (None, ""):
+            cleaned.pop(key, None)
+        else:
+            cleaned[key] = int(value)
+
+    if cleaned.get(CONF_BATTERY_THRESHOLD) not in (None, ""):
+        cleaned[CONF_BATTERY_THRESHOLD] = float(cleaned[CONF_BATTERY_THRESHOLD])
+    else:
+        cleaned.pop(CONF_BATTERY_THRESHOLD, None)
+
+    if CONF_POWER_TYPE in cleaned and cleaned[CONF_POWER_TYPE] in (None, ""):
+        cleaned.pop(CONF_POWER_TYPE, None)
+
+    cleaned[CONF_ENABLE_ANODE_TASK] = bool(cleaned.get(CONF_ENABLE_ANODE_TASK, False))
+    return cleaned
+
+
+def _add_required(schema: dict[Any, Any], key: str, field_selector: Any, *, default: Any) -> None:
+    schema[vol.Required(key, default=default)] = field_selector
+
+
+def _add_optional(schema: dict[Any, Any], key: str, field_selector: Any, *, default: Any | None = None) -> None:
+    if default is None:
+        schema[vol.Optional(key)] = field_selector
+    else:
+        schema[vol.Optional(key, default=default)] = field_selector
+
+
+def _number_selector(min_value: int | float, max_value: int | float, step: int | float):
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(min=min_value, max=max_value, step=step, mode=selector.NumberSelectorMode.BOX)
+    )
+
+
+def _entity_selector(domains: list[str]):
+    return selector.EntitySelector(selector.EntitySelectorConfig(domain=domains))
+
+
+def _equipment_selector():
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                selector.SelectOptionDict(value=definition.key, label=definition.label)
+                for definition in get_supported_definitions()
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _power_selector(definition):
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                selector.SelectOptionDict(value=power_type, label=POWER_TYPE_LABELS[power_type])
+                for power_type in definition.supported_power_types
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _asset_select_schema(assets) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_ASSET_ID): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[selector.SelectOptionDict(value=asset.asset_id, label=asset.name) for asset in assets],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        }
+    )
+
+
+def _equipment_summary_text(assets) -> str:
+    if not assets:
+        return "No equipment has been added yet."
+    return "\n".join(f"- {asset_summary(asset)}" for asset in assets)
+
+
+def _load_entry_assets(config_entry):
+    return load_assets(config_entry.options.get(CONF_ASSETS, config_entry.data.get(CONF_ASSETS, [])))
+
+
+def _primary_task_label(equipment_type: str) -> str:
+    definition = get_equipment_definition(equipment_type)
+    return next(task.title for task in definition.tasks if task.key == definition.primary_task_key)
+
+
+def _task_exists(equipment_type: str, task_key: str) -> bool:
+    definition = get_equipment_definition(equipment_type)
+    return any(task.key == task_key for task in definition.tasks)
+
+
+def _show_sensor_section(equipment_type: str) -> bool:
+    return equipment_type != "fire_alarms"

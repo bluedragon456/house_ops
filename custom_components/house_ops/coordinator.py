@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import CONF_ASSETS, DEFAULT_SNOOZE_DAYS, DOMAIN
 from .engine import build_snapshot, collect_linked_entities
 from .models import HouseOpsRuntimeData, RegistrySnapshot
-from .registry import dump_assets, find_asset, load_assets, mark_task_serviced, snooze_task, upsert_asset
+from .registry import dump_assets, find_asset, load_assets, mark_task_serviced, remove_asset, snooze_task, upsert_asset
 
 
 class HouseOpsCoordinator(DataUpdateCoordinator[RegistrySnapshot]):
@@ -67,6 +67,16 @@ class HouseOpsCoordinator(DataUpdateCoordinator[RegistrySnapshot]):
     async def async_add_or_update_asset(self, asset: Any) -> None:
         assets = load_assets(self.entry.options.get(CONF_ASSETS, self.entry.data.get(CONF_ASSETS, [])))
         updated_assets = upsert_asset(assets, asset)
+        self.hass.config_entries.async_update_entry(
+            self.entry,
+            options={**self.entry.options, CONF_ASSETS: dump_assets(updated_assets)},
+        )
+        await self.async_refresh()
+        self._async_resubscribe()
+
+    async def async_remove_asset(self, asset_id: str) -> None:
+        assets = load_assets(self.entry.options.get(CONF_ASSETS, self.entry.data.get(CONF_ASSETS, [])))
+        updated_assets = remove_asset(assets, asset_id)
         self.hass.config_entries.async_update_entry(
             self.entry,
             options={**self.entry.options, CONF_ASSETS: dump_assets(updated_assets)},

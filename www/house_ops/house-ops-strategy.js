@@ -1,4 +1,6 @@
-const HOUSE_OPS_STATUS_SUFFIX = "_maintenance_status";
+const STRATEGY_ELEMENT = "ll-strategy-dashboard-house-ops";
+const LEGACY_ELEMENT = "ll-strategy-house-ops";
+const STATUS_SUFFIX = "_maintenance_status";
 
 const titleize = (value) =>
   value
@@ -15,12 +17,13 @@ const discoverAssets = (hass) =>
     .filter(
       (stateObj) =>
         stateObj.entity_id.startsWith("sensor.") &&
-        stateObj.entity_id.endsWith(HOUSE_OPS_STATUS_SUFFIX) &&
+        stateObj.entity_id.endsWith(STATUS_SUFFIX) &&
         stateObj.attributes.tasks !== undefined
     )
     .map((stateObj) => {
-      const slug = stripSuffix(stateObj.entity_id.replace("sensor.", ""), HOUSE_OPS_STATUS_SUFFIX);
-      const name = stateObj.attributes.friendly_name?.replace(/\s+Maintenance Status$/i, "") || titleize(slug);
+      const slug = stripSuffix(stateObj.entity_id.replace("sensor.", ""), STATUS_SUFFIX);
+      const name =
+        stateObj.attributes.friendly_name?.replace(/\s+Maintenance Status$/i, "") || titleize(slug);
       return {
         slug,
         name,
@@ -35,106 +38,66 @@ const discoverAssets = (hass) =>
     })
     .sort((left, right) => left.name.localeCompare(right.name));
 
-const buttonCard = (entityId, name, icon) => ({
+const buildButtonCard = (entityId, name, icon) => ({
   type: "button",
   entity: entityId,
   name,
   icon,
   tap_action: {
-    action: "perform-action",
-    perform_action: "button.press",
+    action: "call-service",
+    service: "button.press",
     target: { entity_id: entityId },
   },
+});
+
+const buildEmptyDashboard = () => ({
+  title: "HouseOps",
+  views: [
+    {
+      title: "Overview",
+      path: "overview",
+      icon: "mdi:home-wrench-outline",
+      cards: [
+        {
+          type: "markdown",
+          content:
+            "No HouseOps equipment was discovered yet. Add equipment from Settings > Devices & services > HouseOps > Configure, then reload this dashboard.",
+        },
+      ],
+    },
+  ],
 });
 
 const buildOverviewView = (assets) => ({
   title: "Overview",
   path: "overview",
   icon: "mdi:home-heart",
-  type: "sections",
-  max_columns: 4,
-  sections: [
+  cards: [
     {
-      type: "grid",
-      cards: [
-        {
-          type: "heading",
-          heading: "HouseOps",
-          heading_style: "title",
-          icon: "mdi:home-wrench-outline",
-        },
-        {
-          type: "markdown",
-          content: `Tracking ${assets.length} asset(s) for maintenance and household operations.`,
-        },
-      ],
+      type: "markdown",
+      content: `HouseOps is tracking ${assets.length} equipment item(s).`,
+    },
+    {
+      type: "entities",
+      title: "Maintenance status",
+      entities: assets.map((asset) => ({ entity: asset.status, name: asset.name })),
+    },
+    {
+      type: "entities",
+      title: "Upcoming work",
+      entities: assets.flatMap((asset) => [
+        { entity: asset.nextServiceDate, name: `${asset.name} next service` },
+        { entity: asset.daysRemaining, name: `${asset.name} days remaining` },
+      ]),
     },
     {
       type: "grid",
-      cards: [
-        {
-          type: "heading",
-          heading: "Attention Queue",
-          icon: "mdi:alert-octagon-outline",
-        },
-        {
-          type: "entity-filter",
-          show_empty: false,
-          entities: assets.map((asset) => asset.status),
-          state_filter: ["due", "overdue", "due_soon"],
-          card: {
-            type: "entities",
-            title: "Assets needing attention",
-          },
-        },
-      ],
-    },
-    {
-      type: "grid",
-      cards: [
-        {
-          type: "heading",
-          heading: "Portfolio",
-          icon: "mdi:view-grid-outline",
-        },
-        {
-          type: "grid",
-          columns: Math.min(Math.max(assets.length, 1), 3),
-          square: false,
-          cards: assets.flatMap((asset) => [
-            {
-              type: "tile",
-              entity: asset.status,
-              name: asset.name,
-              vertical: true,
-            },
-            {
-              type: "tile",
-              entity: asset.daysRemaining,
-              name: `${asset.name} days`,
-            },
-          ]),
-        },
-      ],
-    },
-    {
-      type: "grid",
-      cards: [
-        {
-          type: "heading",
-          heading: "Quick Actions",
-          icon: "mdi:gesture-tap-button",
-        },
-        {
-          type: "grid",
-          columns: 2,
-          square: false,
-          cards: assets.flatMap((asset) => [
-            buttonCard(asset.markServiced, `${asset.name} serviced`, "mdi:check-decagram-outline"),
-            buttonCard(asset.snooze, `${asset.name} snooze`, "mdi:alarm-snooze"),
-          ]),
-        },
-      ],
+      columns: 2,
+      square: false,
+      cards: assets.flatMap((asset) => [
+        buildButtonCard(asset.markServiced, `Mark ${asset.name} serviced`, "mdi:check"),
+        buildButtonCard(asset.snooze, `Snooze ${asset.name}`, "mdi:clock-outline"),
+      ]),
     },
   ],
 });
@@ -143,113 +106,28 @@ const buildAssetView = (asset) => ({
   title: asset.name,
   path: asset.slug,
   icon: "mdi:tools",
-  type: "sections",
-  max_columns: 4,
-  sections: [
+  cards: [
     {
-      type: "grid",
-      cards: [
-        {
-          type: "heading",
-          heading: asset.name,
-          heading_style: "title",
-          icon: "mdi:home-cog-outline",
-        },
-        {
-          type: "grid",
-          columns: 2,
-          square: false,
-          cards: [
-            {
-              type: "tile",
-              entity: asset.status,
-              name: "Maintenance status",
-              vertical: true,
-            },
-            {
-              type: "tile",
-              entity: asset.due,
-              name: "Due now",
-            },
-            {
-              type: "tile",
-              entity: asset.nextServiceDate,
-              name: "Next service",
-            },
-            {
-              type: "tile",
-              entity: asset.daysRemaining,
-              name: "Days remaining",
-            },
-          ],
-        },
-      ],
+      type: "entities",
+      title: asset.name,
+      entities: [asset.status, asset.nextServiceDate, asset.daysRemaining, asset.reason, asset.due],
     },
     {
-      type: "grid",
+      type: "horizontal-stack",
       cards: [
-        {
-          type: "heading",
-          heading: "Actions",
-          icon: "mdi:wrench-clock",
-        },
-        {
-          type: "horizontal-stack",
-          cards: [
-            buttonCard(asset.markServiced, "Mark serviced", "mdi:check"),
-            buttonCard(asset.snooze, "Snooze", "mdi:clock-outline"),
-          ],
-        },
-      ],
-    },
-    {
-      type: "grid",
-      cards: [
-        {
-          type: "heading",
-          heading: "Details",
-          icon: "mdi:text-box-search-outline",
-        },
-        {
-          type: "entities",
-          title: "Asset detail",
-          show_header_toggle: false,
-          entities: [
-            asset.status,
-            asset.nextServiceDate,
-            asset.daysRemaining,
-            asset.reason,
-          ],
-        },
+        buildButtonCard(asset.markServiced, "Mark serviced", "mdi:check"),
+        buildButtonCard(asset.snooze, "Snooze", "mdi:clock-outline"),
       ],
     },
   ],
 });
 
-const buildEmptyDashboard = () => ({
-  title: "HouseOps",
-  views: [
-    {
-      title: "HouseOps",
-      path: "house-ops",
-      icon: "mdi:home-wrench-outline",
-      cards: [
-        {
-          type: "markdown",
-          content: "No HouseOps assets were discovered yet. Add equipment in Settings > Devices & services and reload the dashboard.",
-        },
-      ],
-    },
-  ],
-});
-
-class HouseOpsStrategy extends HTMLElement {
+class HouseOpsDashboardStrategy extends HTMLElement {
   static async generateDashboard(info) {
     const assets = discoverAssets(info.hass);
     if (!assets.length) {
       return buildEmptyDashboard();
     }
-
     return {
       title: "HouseOps",
       views: [buildOverviewView(assets), ...assets.map((asset) => buildAssetView(asset))],
@@ -257,6 +135,11 @@ class HouseOpsStrategy extends HTMLElement {
   }
 }
 
-if (!customElements.get("ll-strategy-house-ops")) {
-  customElements.define("ll-strategy-house-ops", HouseOpsStrategy);
+if (!customElements.get(STRATEGY_ELEMENT)) {
+  customElements.define(STRATEGY_ELEMENT, HouseOpsDashboardStrategy);
+  console.debug("[HouseOps] Registered dashboard strategy", STRATEGY_ELEMENT);
+}
+
+if (!customElements.get(LEGACY_ELEMENT)) {
+  customElements.define(LEGACY_ELEMENT, HouseOpsDashboardStrategy);
 }
