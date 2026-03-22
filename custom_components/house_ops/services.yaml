@@ -54,10 +54,10 @@ add_asset:
       selector:
         text:
     source_entity:
-      name: Linked Home Assistant entity
-      description: Optional entity used to pull device name, area, manufacturer, model, and battery sensor details.
+      name: Linked Home Assistant device
+      description: Optional device used to pull device name, area, manufacturer, model, and battery sensor details.
       selector:
-        entity:
+        device:
     area_id:
       name: Home Assistant area ID
       selector:

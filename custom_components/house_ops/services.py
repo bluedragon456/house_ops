@@ -72,7 +72,7 @@ def async_register_services(hass: HomeAssistant) -> None:
             vol.Optional(CONF_ASSET_NAME): cv.string,
             vol.Optional(CONF_AREA_ID): cv.string,
             vol.Optional(CONF_CUSTOM_AREA): cv.string,
-            vol.Optional(CONF_SOURCE_ENTITY): cv.entity_id,
+            vol.Optional(CONF_SOURCE_ENTITY): cv.string,
             vol.Optional(CONF_POWER_TYPE): cv.string,
             vol.Optional(CONF_BATTERY_SERVICE_MODE): cv.string,
             vol.Optional(CONF_MANUFACTURER): cv.string,
@@ -130,7 +130,7 @@ def async_register_services(hass: HomeAssistant) -> None:
             existing_assets=list(coordinator.data.assets.values()),
         )
         if not asset.name:
-            raise HomeAssistantError("Equipment name is required unless the linked entity provides one.")
+            raise HomeAssistantError("Equipment name is required unless the linked device provides one.")
         await coordinator.async_add_or_update_asset(asset)
 
     hass.services.async_register(DOMAIN, SERVICE_MARK_SERVICED, async_handle_mark_serviced, schema=mark_schema)

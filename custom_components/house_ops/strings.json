@@ -22,7 +22,7 @@
         "data": {
           "equipment_type": "Equipment type",
           "name": "Equipment name",
-          "source_entity": "Linked Home Assistant entity",
+          "source_entity": "Linked Home Assistant device",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
           "power_type": "Power type",
@@ -59,21 +59,21 @@
     "step": {
       "init": {
         "title": "Manage equipment",
-        "description": "Choose what you want to do with your equipment list.\n\nCurrent equipment:\n${equipment_summary}",
+        "description": "Choose what you want to do with your equipment list.\n\nCurrent equipment:\n{equipment_summary}",
         "data": {
           "next_action": "Choose an action"
         }
       },
       "review_equipment": {
         "title": "Review equipment",
-        "description": "Select an equipment item to review.\n\nCurrent equipment:\n${equipment_summary}",
+        "description": "Select an equipment item to review.\n\nCurrent equipment:\n{equipment_summary}",
         "data": {
           "asset_id": "Equipment"
         }
       },
       "review_equipment_details": {
         "title": "Equipment summary",
-        "description": "${asset_summary}",
+        "description": "{asset_summary}",
         "data": {
           "next_action": "What would you like to do next?"
         }
@@ -94,7 +94,7 @@
         "data": {
           "equipment_type": "Equipment type",
           "name": "Equipment name",
-          "source_entity": "Linked Home Assistant entity",
+          "source_entity": "Linked Home Assistant device",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
           "power_type": "Power type",
@@ -121,7 +121,7 @@
       },
       "edit_equipment": {
         "title": "Edit equipment",
-        "description": "Select an equipment item to edit.\n\nCurrent equipment:\n${equipment_summary}",
+        "description": "Select an equipment item to edit.\n\nCurrent equipment:\n{equipment_summary}",
         "data": {
           "asset_id": "Equipment"
         }
@@ -132,7 +132,7 @@
         "data": {
           "equipment_type": "Equipment type",
           "name": "Equipment name",
-          "source_entity": "Linked Home Assistant entity",
+          "source_entity": "Linked Home Assistant device",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
           "power_type": "Power type",
@@ -159,14 +159,14 @@
       },
       "remove_equipment": {
         "title": "Remove equipment",
-        "description": "Select an equipment item to remove.\n\nCurrent equipment:\n${equipment_summary}",
+        "description": "Select an equipment item to remove.\n\nCurrent equipment:\n{equipment_summary}",
         "data": {
           "asset_id": "Equipment"
         }
       },
       "remove_selected_equipment": {
         "title": "Confirm removal",
-        "description": "Remove this equipment item from HouseOps?\n\n${asset_summary}",
+        "description": "Remove this equipment item from HouseOps?\n\n{asset_summary}",
         "data": {
           "confirm_remove": "Yes, remove this equipment item"
         }

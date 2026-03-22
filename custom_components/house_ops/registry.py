@@ -82,8 +82,8 @@ def build_asset_from_input(
     equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
     definition = get_equipment_definition(equipment_type)
     power_type = str(user_input.get(CONF_POWER_TYPE) or definition.default_power_type)
-    source_entity = _clean_optional(user_input.get(CONF_SOURCE_ENTITY))
-    derived = _derive_source_entity_context(hass, source_entity)
+    source_device = _clean_optional(user_input.get(CONF_SOURCE_ENTITY))
+    derived = _derive_source_context(hass, source_device)
     asset_name = _resolve_asset_name(user_input, derived)
     battery_service_mode = _resolve_battery_service_mode(user_input, existing_asset, equipment_type, power_type)
     asset_id = existing_asset.asset_id if existing_asset else _generate_asset_id(user_input, current_assets, asset_name)
@@ -134,7 +134,7 @@ def build_asset_from_input(
         name=asset_name,
         area=area,
         area_id=area_id,
-        source_entity=source_entity,
+        source_entity=source_device,
         equipment_type=equipment_type,
         power_type=power_type,
         battery_service_mode=battery_service_mode,
@@ -291,7 +291,7 @@ def _resolve_asset_name(user_input: dict[str, Any], derived: dict[str, str | Non
     return str(user_input.get(CONF_ASSET_NAME) or derived["name"] or "").strip()
 
 
-def _derive_source_entity_context(hass: HomeAssistant, source_entity: str | None) -> dict[str, str | None]:
+def _derive_source_context(hass: HomeAssistant, source_device: str | None) -> dict[str, str | None]:
     context = {
         "name": None,
         "manufacturer": None,
@@ -299,14 +299,17 @@ def _derive_source_entity_context(hass: HomeAssistant, source_entity: str | None
         "area_id": None,
         "battery_sensor": None,
     }
-    if not source_entity:
+    if not source_device:
         return context
 
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
-    entity_entry = entity_registry.async_get(source_entity)
-    state = hass.states.get(source_entity)
-    device_entry = device_registry.async_get(entity_entry.device_id) if entity_entry and entity_entry.device_id else None
+    entity_entry = entity_registry.async_get(source_device) if "." in source_device else None
+    device_id = source_device
+    state = hass.states.get(source_device) if entity_entry else None
+    if entity_entry and entity_entry.device_id:
+        device_id = entity_entry.device_id
+    device_entry = device_registry.async_get(device_id) if device_id else None
 
     if device_entry:
         context["name"] = device_entry.name_by_user or device_entry.name
@@ -326,10 +329,10 @@ def _derive_source_entity_context(hass: HomeAssistant, source_entity: str | None
     if not context["model"] and state:
         context["model"] = state.attributes.get("model")
 
-    if source_entity.startswith(("sensor.", "number.")) and _looks_like_battery_state(state):
-        context["battery_sensor"] = source_entity
-    elif entity_entry and entity_entry.device_id:
-        for candidate in er.async_entries_for_device(entity_registry, entity_entry.device_id):
+    if entity_entry and source_device.startswith(("sensor.", "number.")) and _looks_like_battery_state(state):
+        context["battery_sensor"] = source_device
+    elif device_id:
+        for candidate in er.async_entries_for_device(entity_registry, device_id):
             candidate_state = hass.states.get(candidate.entity_id)
             if candidate.entity_id.startswith(("sensor.", "number.")) and _looks_like_battery_state(candidate_state):
                 context["battery_sensor"] = candidate.entity_id

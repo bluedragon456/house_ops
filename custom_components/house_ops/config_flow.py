@@ -351,7 +351,7 @@ def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> 
 
     _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector(), default=equipment_type)
     _add_required(schema, CONF_ASSET_NAME, selector.TextSelector(), default=defaults.get(CONF_ASSET_NAME, ""))
-    _add_optional(schema, CONF_SOURCE_ENTITY, _entity_selector(), default=defaults.get(CONF_SOURCE_ENTITY))
+    _add_optional(schema, CONF_SOURCE_ENTITY, _device_selector(), default=defaults.get(CONF_SOURCE_ENTITY))
     _add_optional(schema, CONF_AREA_ID, selector.AreaSelector(), default=defaults.get(CONF_AREA_ID))
     _add_optional(schema, CONF_CUSTOM_AREA, selector.TextSelector(), default=defaults.get(CONF_CUSTOM_AREA))
 
@@ -543,6 +543,10 @@ def _entity_selector(domains: list[str] | None = None):
     if domains is None:
         return selector.EntitySelector(selector.EntitySelectorConfig())
     return selector.EntitySelector(selector.EntitySelectorConfig(domain=domains))
+
+
+def _device_selector():
+    return selector.DeviceSelector()
 
 
 def _battery_service_mode_selector():
