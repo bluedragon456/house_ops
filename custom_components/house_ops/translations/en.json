@@ -57,7 +57,10 @@
     "step": {
       "init": {
         "title": "Manage equipment",
-        "description": "Use this menu to review, add, edit, or remove equipment.\n\nCurrent equipment:\n${equipment_summary}"
+        "description": "Choose what you want to do with your equipment list.\n\nCurrent equipment:\n${equipment_summary}",
+        "data": {
+          "next_action": "Choose an action"
+        }
       },
       "review_equipment": {
         "title": "Review equipment",
@@ -68,7 +71,10 @@
       },
       "review_equipment_details": {
         "title": "Equipment summary",
-        "description": "${asset_summary}"
+        "description": "${asset_summary}",
+        "data": {
+          "next_action": "What would you like to do next?"
+        }
       },
       "edit_selected_equipment": {
         "title": "Edit this equipment"

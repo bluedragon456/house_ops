@@ -49,6 +49,8 @@ from .const import (
 from .equipment_catalog import POWER_TYPE_LABELS, get_equipment_definition, get_supported_definitions, supports_battery
 from .registry import asset_summary, build_asset_from_input, dump_assets, find_asset, load_assets, remove_asset, upsert_asset
 
+CONF_NEXT_ACTION = "next_action"
+
 
 class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HouseOps."""
@@ -142,9 +144,22 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         assets = _load_entry_assets(self._config_entry)
-        return self.async_show_menu(
+        if user_input is not None:
+            return await self._async_handle_manage_action(user_input[CONF_NEXT_ACTION])
+        return self.async_show_form(
             step_id="init",
-            menu_options=["review_equipment", "add_equipment", "edit_equipment", "remove_equipment"],
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NEXT_ACTION): _action_selector(
+                        [
+                            ("review_equipment", "Review equipment"),
+                            ("add_equipment", "Add equipment"),
+                            ("edit_equipment", "Edit equipment"),
+                            ("remove_equipment", "Remove equipment"),
+                        ]
+                    )
+                }
+            ),
             description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
         )
 
@@ -166,9 +181,26 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         asset = find_asset(assets, self._selected_asset_id or "")
         if asset is None:
             return self.async_abort(reason="asset_not_found")
-        return self.async_show_menu(
+        if user_input is not None:
+            selected_action = user_input[CONF_NEXT_ACTION]
+            if selected_action == "back_to_manage":
+                return await self.async_step_init()
+            if selected_action == "edit_selected_equipment":
+                return await self.async_step_edit_equipment_details()
+            return await self.async_step_remove_selected_equipment()
+        return self.async_show_form(
             step_id="review_equipment_details",
-            menu_options=["edit_selected_equipment", "remove_selected_equipment"],
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NEXT_ACTION): _action_selector(
+                        [
+                            ("edit_selected_equipment", "Edit this equipment"),
+                            ("remove_selected_equipment", "Remove this equipment"),
+                            ("back_to_manage", "Back to equipment manager"),
+                        ]
+                    )
+                }
+            ),
             description_placeholders={"asset_summary": asset_summary(asset)},
         )
 
@@ -290,6 +322,15 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema({vol.Required(CONF_CONFIRM_REMOVE, default=False): selector.BooleanSelector()}),
             description_placeholders={"asset_summary": asset_summary(asset)},
         )
+
+    async def _async_handle_manage_action(self, selected_action: str):
+        if selected_action == "review_equipment":
+            return await self.async_step_review_equipment()
+        if selected_action == "add_equipment":
+            return await self.async_step_add_equipment()
+        if selected_action == "edit_equipment":
+            return await self.async_step_edit_equipment()
+        return await self.async_step_remove_equipment()
 
 
 def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> vol.Schema:
@@ -516,7 +557,12 @@ def _asset_select_schema(assets) -> vol.Schema:
 def _equipment_summary_text(assets) -> str:
     if not assets:
         return "No equipment has been added yet."
-    return "\n".join(f"- {asset_summary(asset)}" for asset in assets)
+    return "\n".join(
+        f"- {asset.name} | {asset.equipment_type.replace('_', ' ')} | "
+        f"{asset.power_type.replace('_', ' ')} | {asset.area or 'No area'} | "
+        f"{', '.join(task.title for task in asset.tasks)}"
+        for asset in assets
+    )
 
 
 def _load_entry_assets(config_entry):
@@ -535,3 +581,12 @@ def _task_exists(equipment_type: str, task_key: str) -> bool:
 
 def _show_sensor_section(equipment_type: str) -> bool:
     return equipment_type != "fire_alarms"
+
+
+def _action_selector(options: list[tuple[str, str]]):
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[selector.SelectOptionDict(value=value, label=label) for value, label in options],
+            mode=selector.SelectSelectorMode.LIST,
+        )
+    )
