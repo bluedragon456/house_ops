@@ -7,15 +7,19 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import slugify
 
 from .const import (
+    BATTERY_SERVICE_REPLACEABLE,
     CONF_ANODE_INTERVAL_DAYS,
     CONF_AREA_ID,
     CONF_ASSET_NAME,
     CONF_BASE_INTERVAL_DAYS,
     CONF_BATTERY_INTERVAL_DAYS,
     CONF_BATTERY_SENSOR,
+    CONF_BATTERY_SERVICE_MODE,
     CONF_BATTERY_THRESHOLD,
     CONF_CUSTOM_AREA,
     CONF_ENABLE_ANODE_TASK,
@@ -32,6 +36,7 @@ from .const import (
     CONF_REPLACEMENT_INTERVAL_DAYS,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
+    CONF_SOURCE_ENTITY,
     CONF_USAGE_SENSOR,
     CONF_USAGE_THRESHOLD,
     DEFAULT_BATTERY_THRESHOLD,
@@ -49,7 +54,12 @@ from .const import (
     TASK_REPLACEMENT,
     TASK_TEST,
 )
-from .equipment_catalog import available_task_definitions, get_equipment_definition
+from .equipment_catalog import (
+    BATTERY_SERVICE_MODE_LABELS,
+    POWER_TYPE_LABELS,
+    available_task_definitions,
+    get_equipment_definition,
+)
 from .models import Asset, MaintenanceTask, SensorLink
 
 
@@ -72,10 +82,14 @@ def build_asset_from_input(
     equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
     definition = get_equipment_definition(equipment_type)
     power_type = str(user_input.get(CONF_POWER_TYPE) or definition.default_power_type)
-    asset_id = existing_asset.asset_id if existing_asset else _generate_asset_id(user_input, current_assets)
+    source_entity = _clean_optional(user_input.get(CONF_SOURCE_ENTITY))
+    derived = _derive_source_entity_context(hass, source_entity)
+    asset_name = _resolve_asset_name(user_input, derived)
+    battery_service_mode = _resolve_battery_service_mode(user_input, existing_asset, equipment_type, power_type)
+    asset_id = existing_asset.asset_id if existing_asset else _generate_asset_id(user_input, current_assets, asset_name)
     install_date = _as_date(user_input.get(CONF_INSTALL_DATE))
     last_serviced_date = _as_date(user_input.get(CONF_LAST_SERVICED_DATE) or user_input.get(CONF_LAST_SERVICED))
-    area_id = _clean_optional(user_input.get(CONF_AREA_ID))
+    area_id = _clean_optional(user_input.get(CONF_AREA_ID)) or derived["area_id"]
     area = _resolve_area_name(hass, area_id, user_input.get(CONF_CUSTOM_AREA), existing_asset)
 
     previous_tasks = {task.key: task for task in (existing_asset.tasks if existing_asset else [])}
@@ -83,13 +97,17 @@ def build_asset_from_input(
     primary_override = _as_date(user_input.get(CONF_NEXT_DUE_OVERRIDE))
     include_anode = bool(user_input.get(CONF_ENABLE_ANODE_TASK)) or TASK_ANODE in previous_tasks
 
+    effective_input = dict(user_input)
+    if not effective_input.get(CONF_BATTERY_SENSOR) and derived["battery_sensor"]:
+        effective_input[CONF_BATTERY_SENSOR] = derived["battery_sensor"]
+
     tasks: list[MaintenanceTask] = []
-    for task_definition in available_task_definitions(definition, power_type):
+    for task_definition in available_task_definitions(definition, power_type, battery_service_mode):
         if task_definition.key == TASK_ANODE and not include_anode:
             continue
 
         previous = previous_tasks.get(task_definition.key)
-        interval = _interval_for_task(task_definition.key, user_input, previous)
+        interval = _interval_for_task(task_definition.key, effective_input, previous)
         if task_definition.key == TASK_REPLACEMENT:
             task_last_serviced = previous.last_serviced_date if previous and previous.last_serviced_date else install_date
         else:
@@ -106,20 +124,22 @@ def build_asset_from_input(
                 last_serviced_date=task_last_serviced,
                 next_due_override=override,
                 snoozed_until=previous.snoozed_until if previous else None,
-                sensor_links=_sensor_links_for_task(task_definition.key, user_input),
+                sensor_links=_sensor_links_for_task(task_definition.key, effective_input),
                 enabled=True,
             )
         )
 
     return Asset(
         asset_id=asset_id,
-        name=str(user_input[CONF_ASSET_NAME]).strip(),
+        name=asset_name,
         area=area,
         area_id=area_id,
+        source_entity=source_entity,
         equipment_type=equipment_type,
         power_type=power_type,
-        manufacturer=_clean_optional(user_input.get(CONF_MANUFACTURER)),
-        model=_clean_optional(user_input.get(CONF_MODEL)),
+        battery_service_mode=battery_service_mode,
+        manufacturer=_clean_optional(user_input.get(CONF_MANUFACTURER)) or derived["manufacturer"],
+        model=_clean_optional(user_input.get(CONF_MODEL)) or derived["model"],
         install_date=install_date,
         last_serviced_date=last_serviced_date,
         notes=_clean_optional(user_input.get(CONF_NOTES)),
@@ -176,7 +196,13 @@ def snooze_task(assets: list[Asset], asset_id: str, task_key: str, snoozed_until
 def asset_summary(asset: Asset) -> str:
     task_bits = ", ".join(f"{task.title} every {task.base_interval_days}d" for task in asset.tasks)
     area = asset.area or "No area"
-    return f"{asset.name} ({asset.equipment_type.replace('_', ' ')}, {asset.power_type.replace('_', ' ')}) in {area}. Tasks: {task_bits or 'none'}."
+    definition = get_equipment_definition(asset.equipment_type)
+    equipment_label = definition.label
+    power_label = POWER_TYPE_LABELS.get(asset.power_type, asset.power_type.replace("_", " "))
+    battery_suffix = ""
+    if asset.battery_service_mode in BATTERY_SERVICE_MODE_LABELS:
+        battery_suffix = f", {BATTERY_SERVICE_MODE_LABELS[asset.battery_service_mode].lower()}"
+    return f"{asset.name} ({equipment_label}, {power_label}{battery_suffix}) in {area}. Tasks: {task_bits or 'none'}."
 
 
 def _interval_for_task(task_key: str, user_input: dict[str, Any], previous: MaintenanceTask | None) -> int:
@@ -243,6 +269,83 @@ def _sensor_links_for_task(task_key: str, user_input: dict[str, Any]) -> list[Se
     return links
 
 
+def _resolve_battery_service_mode(
+    user_input: dict[str, Any],
+    existing_asset: Asset | None,
+    equipment_type: str,
+    power_type: str,
+) -> str | None:
+    if equipment_type != "fire_alarms" or power_type == "wired":
+        return None
+    requested = _clean_optional(user_input.get(CONF_BATTERY_SERVICE_MODE))
+    if requested:
+        return requested
+    if existing_asset and existing_asset.battery_service_mode:
+        return existing_asset.battery_service_mode
+    if existing_asset and any(task.key == TASK_BATTERY for task in existing_asset.tasks):
+        return BATTERY_SERVICE_REPLACEABLE
+    return BATTERY_SERVICE_REPLACEABLE
+
+
+def _resolve_asset_name(user_input: dict[str, Any], derived: dict[str, str | None]) -> str:
+    return str(user_input.get(CONF_ASSET_NAME) or derived["name"] or "").strip()
+
+
+def _derive_source_entity_context(hass: HomeAssistant, source_entity: str | None) -> dict[str, str | None]:
+    context = {
+        "name": None,
+        "manufacturer": None,
+        "model": None,
+        "area_id": None,
+        "battery_sensor": None,
+    }
+    if not source_entity:
+        return context
+
+    entity_registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
+    entity_entry = entity_registry.async_get(source_entity)
+    state = hass.states.get(source_entity)
+    device_entry = device_registry.async_get(entity_entry.device_id) if entity_entry and entity_entry.device_id else None
+
+    if device_entry:
+        context["name"] = device_entry.name_by_user or device_entry.name
+        context["manufacturer"] = device_entry.manufacturer
+        context["model"] = device_entry.model
+        context["area_id"] = device_entry.area_id
+
+    if entity_entry and entity_entry.area_id:
+        context["area_id"] = entity_entry.area_id
+
+    if not context["name"] and entity_entry:
+        context["name"] = entity_entry.original_name or entity_entry.name
+    if not context["name"] and state:
+        context["name"] = state.name
+    if not context["manufacturer"] and state:
+        context["manufacturer"] = state.attributes.get("manufacturer")
+    if not context["model"] and state:
+        context["model"] = state.attributes.get("model")
+
+    if source_entity.startswith(("sensor.", "number.")) and _looks_like_battery_state(state):
+        context["battery_sensor"] = source_entity
+    elif entity_entry and entity_entry.device_id:
+        for candidate in er.async_entries_for_device(entity_registry, entity_entry.device_id):
+            candidate_state = hass.states.get(candidate.entity_id)
+            if candidate.entity_id.startswith(("sensor.", "number.")) and _looks_like_battery_state(candidate_state):
+                context["battery_sensor"] = candidate.entity_id
+                break
+
+    return context
+
+
+def _looks_like_battery_state(state: Any) -> bool:
+    if state is None:
+        return False
+    if str(state.attributes.get("device_class", "")).lower() == "battery":
+        return True
+    return "battery" in str(state.entity_id).lower()
+
+
 def _resolve_area_name(
     hass: HomeAssistant,
     area_id: str | None,
@@ -262,8 +365,9 @@ def _resolve_area_name(
     return None
 
 
-def _generate_asset_id(user_input: dict[str, Any], assets: list[Asset]) -> str:
-    base = slugify(f"{user_input[CONF_EQUIPMENT_TYPE]}_{user_input[CONF_ASSET_NAME]}")
+def _generate_asset_id(user_input: dict[str, Any], assets: list[Asset], asset_name: str) -> str:
+    base_name = asset_name or _clean_optional(user_input.get(CONF_SOURCE_ENTITY)) or "item"
+    base = slugify(f"{user_input[CONF_EQUIPMENT_TYPE]}_{base_name}")
     existing_ids = {asset.asset_id for asset in assets}
     candidate = base
     idx = 2

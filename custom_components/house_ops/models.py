@@ -83,8 +83,10 @@ class Asset:
     name: str
     area: str | None
     area_id: str | None
+    source_entity: str | None
     equipment_type: str
     power_type: str
+    battery_service_mode: str | None
     manufacturer: str | None
     model: str | None
     install_date: date | None
@@ -99,8 +101,10 @@ class Asset:
             "name": self.name,
             "area": self.area,
             "area_id": self.area_id,
+            "source_entity": self.source_entity,
             "equipment_type": self.equipment_type,
             "power_type": self.power_type,
+            "battery_service_mode": self.battery_service_mode,
             "manufacturer": self.manufacturer,
             "model": self.model,
             "install_date": self.install_date.isoformat() if self.install_date else None,
@@ -118,8 +122,10 @@ class Asset:
             name=str(data["name"]),
             area=str(data["area"]) if data.get("area") else None,
             area_id=str(data["area_id"]) if data.get("area_id") else None,
+            source_entity=str(data["source_entity"]) if data.get("source_entity") else None,
             equipment_type=str(data["equipment_type"]),
             power_type=str(data.get("power_type", "wired")),
+            battery_service_mode=str(data["battery_service_mode"]) if data.get("battery_service_mode") else None,
             manufacturer=str(data["manufacturer"]) if data.get("manufacturer") else None,
             model=str(data["model"]) if data.get("model") else None,
             install_date=_parse_date(data.get("install_date")),

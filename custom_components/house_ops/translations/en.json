@@ -18,20 +18,22 @@
       },
       "add_equipment_details": {
         "title": "Create equipment item",
-        "description": "Create a ${equipment_label} item. ${equipment_description} The primary task is ${primary_task}.",
+        "description": "Create a {equipment_label} item. {equipment_description} The main tracked task is {primary_task}.",
         "data": {
           "equipment_type": "Equipment type",
           "name": "Equipment name",
+          "source_entity": "Linked Home Assistant entity",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
           "power_type": "Power type",
+          "battery_service_mode": "Fire alarm battery type",
           "manufacturer": "Manufacturer",
           "model": "Model",
           "notes": "Notes",
           "install_date": "Install date",
           "last_serviced_date": "Last serviced date",
           "next_due_override": "Next due date override",
-          "base_interval_days": "Primary task interval (days)",
+          "base_interval_days": "Primary task repeat interval (days)",
           "inspection_interval_days": "Inspection interval (days)",
           "enable_anode_task": "Track anode rod inspection",
           "anode_interval_days": "Anode rod interval (days)",
@@ -41,8 +43,8 @@
           "usage_threshold": "Usage threshold",
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
-          "battery_interval_days": "Battery interval (days)",
-          "replacement_interval_days": "Replacement advisory interval (days)"
+          "battery_interval_days": "Battery replacement interval (days)",
+          "replacement_interval_days": "Detector replacement interval (days)"
         }
       }
     },
@@ -88,20 +90,22 @@
       },
       "add_equipment_details": {
         "title": "Add equipment details",
-        "description": "Create a ${equipment_label} item. ${equipment_description} The primary task is ${primary_task}.",
+        "description": "Create a {equipment_label} item. {equipment_description} The main tracked task is {primary_task}.",
         "data": {
           "equipment_type": "Equipment type",
           "name": "Equipment name",
+          "source_entity": "Linked Home Assistant entity",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
           "power_type": "Power type",
+          "battery_service_mode": "Fire alarm battery type",
           "manufacturer": "Manufacturer",
           "model": "Model",
           "notes": "Notes",
           "install_date": "Install date",
           "last_serviced_date": "Last serviced date",
           "next_due_override": "Next due date override",
-          "base_interval_days": "Primary task interval (days)",
+          "base_interval_days": "Primary task repeat interval (days)",
           "inspection_interval_days": "Inspection interval (days)",
           "enable_anode_task": "Track anode rod inspection",
           "anode_interval_days": "Anode rod interval (days)",
@@ -111,8 +115,8 @@
           "usage_threshold": "Usage threshold",
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
-          "battery_interval_days": "Battery interval (days)",
-          "replacement_interval_days": "Replacement advisory interval (days)"
+          "battery_interval_days": "Battery replacement interval (days)",
+          "replacement_interval_days": "Detector replacement interval (days)"
         }
       },
       "edit_equipment": {
@@ -124,20 +128,22 @@
       },
       "edit_equipment_details": {
         "title": "Edit equipment details",
-        "description": "Update ${equipment_label}. ${equipment_description} The primary task is ${primary_task}.",
+        "description": "Update {equipment_label}. {equipment_description} The main tracked task is {primary_task}.",
         "data": {
           "equipment_type": "Equipment type",
           "name": "Equipment name",
+          "source_entity": "Linked Home Assistant entity",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
           "power_type": "Power type",
+          "battery_service_mode": "Fire alarm battery type",
           "manufacturer": "Manufacturer",
           "model": "Model",
           "notes": "Notes",
           "install_date": "Install date",
           "last_serviced_date": "Last serviced date",
           "next_due_override": "Next due date override",
-          "base_interval_days": "Primary task interval (days)",
+          "base_interval_days": "Primary task repeat interval (days)",
           "inspection_interval_days": "Inspection interval (days)",
           "enable_anode_task": "Track anode rod inspection",
           "anode_interval_days": "Anode rod interval (days)",
@@ -147,8 +153,8 @@
           "usage_threshold": "Usage threshold",
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
-          "battery_interval_days": "Battery interval (days)",
-          "replacement_interval_days": "Replacement advisory interval (days)"
+          "battery_interval_days": "Battery replacement interval (days)",
+          "replacement_interval_days": "Detector replacement interval (days)"
         }
       },
       "remove_equipment": {

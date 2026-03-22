@@ -51,9 +51,13 @@ add_asset:
         text:
     name:
       name: Equipment name
-      required: true
       selector:
         text:
+    source_entity:
+      name: Linked Home Assistant entity
+      description: Optional entity used to pull device name, area, manufacturer, model, and battery sensor details.
+      selector:
+        entity:
     area_id:
       name: Home Assistant area ID
       selector:
@@ -64,6 +68,11 @@ add_asset:
         text:
     power_type:
       name: Power type
+      selector:
+        text:
+    battery_service_mode:
+      name: Fire alarm battery type
+      description: Use replaceable for batteries you swap, or sealed for batteries that last the detector's lifespan.
       selector:
         text:
     manufacturer:
@@ -87,7 +96,7 @@ add_asset:
       selector:
         date:
     base_interval_days:
-      name: Primary task interval
+      name: Primary task repeat interval
       required: true
       selector:
         number:
@@ -109,14 +118,14 @@ add_asset:
           max: 3650
           mode: box
     battery_interval_days:
-      name: Battery interval
+      name: Battery replacement interval
       selector:
         number:
           min: 30
           max: 730
           mode: box
     replacement_interval_days:
-      name: Replacement advisory interval
+      name: Detector replacement interval
       selector:
         number:
           min: 365

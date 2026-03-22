@@ -18,6 +18,7 @@ from .const import (
     CONF_BASE_INTERVAL_DAYS,
     CONF_BATTERY_INTERVAL_DAYS,
     CONF_BATTERY_SENSOR,
+    CONF_BATTERY_SERVICE_MODE,
     CONF_BATTERY_THRESHOLD,
     CONF_CUSTOM_AREA,
     CONF_ENABLE_ANODE_TASK,
@@ -33,6 +34,7 @@ from .const import (
     CONF_REPLACEMENT_INTERVAL_DAYS,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
+    CONF_SOURCE_ENTITY,
     CONF_USAGE_SENSOR,
     CONF_USAGE_THRESHOLD,
     DOMAIN,
@@ -67,10 +69,12 @@ def async_register_services(hass: HomeAssistant) -> None:
     add_asset_schema = vol.Schema(
         {
             vol.Required(CONF_EQUIPMENT_TYPE): vol.In([definition.key for definition in get_supported_definitions()]),
-            vol.Required(CONF_ASSET_NAME): cv.string,
+            vol.Optional(CONF_ASSET_NAME): cv.string,
             vol.Optional(CONF_AREA_ID): cv.string,
             vol.Optional(CONF_CUSTOM_AREA): cv.string,
+            vol.Optional(CONF_SOURCE_ENTITY): cv.entity_id,
             vol.Optional(CONF_POWER_TYPE): cv.string,
+            vol.Optional(CONF_BATTERY_SERVICE_MODE): cv.string,
             vol.Optional(CONF_MANUFACTURER): cv.string,
             vol.Optional(CONF_MODEL): cv.string,
             vol.Optional(CONF_INSTALL_DATE): cv.date,
@@ -125,6 +129,8 @@ def async_register_services(hass: HomeAssistant) -> None:
             dict(call.data),
             existing_assets=list(coordinator.data.assets.values()),
         )
+        if not asset.name:
+            raise HomeAssistantError("Equipment name is required unless the linked entity provides one.")
         await coordinator.async_add_or_update_asset(asset)
 
     hass.services.async_register(DOMAIN, SERVICE_MARK_SERVICED, async_handle_mark_serviced, schema=mark_schema)

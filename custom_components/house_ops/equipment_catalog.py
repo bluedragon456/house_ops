@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .const import (
+    BATTERY_SERVICE_REPLACEABLE,
+    BATTERY_SERVICE_SEALED_LIFE,
     DEFAULT_FIRE_ALARM_BATTERY_INTERVAL_DAYS,
     DEFAULT_FIRE_ALARM_REPLACEMENT_INTERVAL_DAYS,
     DEFAULT_WATER_HEATER_ANODE_INTERVAL_DAYS,
@@ -154,6 +156,11 @@ POWER_TYPE_LABELS = {
     POWER_TYPE_WIRED_WITH_BATTERY_BACKUP: "Wired with battery backup",
 }
 
+BATTERY_SERVICE_MODE_LABELS = {
+    BATTERY_SERVICE_REPLACEABLE: "Replaceable battery",
+    BATTERY_SERVICE_SEALED_LIFE: "Sealed 10-year battery",
+}
+
 
 def get_equipment_definition(key: str) -> EquipmentDefinition:
     return _CATALOG[key]
@@ -163,18 +170,29 @@ def get_supported_definitions() -> tuple[EquipmentDefinition, ...]:
     return SUPPORTED_EQUIPMENT
 
 
-def supports_battery(definition: EquipmentDefinition, power_type: str) -> bool:
+def supports_battery(definition: EquipmentDefinition, power_type: str, battery_service_mode: str | None = None) -> bool:
     battery_task = next((task for task in definition.tasks if task.key == TASK_BATTERY), None)
     if battery_task is None:
+        return False
+    if definition.key == EQUIPMENT_TYPE_FIRE_ALARMS and battery_service_mode == BATTERY_SERVICE_SEALED_LIFE:
         return False
     if battery_task.allowed_power_types is None:
         return True
     return power_type in battery_task.allowed_power_types
 
 
-def available_task_definitions(definition: EquipmentDefinition, power_type: str) -> tuple[TaskDefinition, ...]:
+def available_task_definitions(
+    definition: EquipmentDefinition,
+    power_type: str,
+    battery_service_mode: str | None = None,
+) -> tuple[TaskDefinition, ...]:
     return tuple(
         task
         for task in definition.tasks
-        if task.allowed_power_types is None or power_type in task.allowed_power_types
+        if (task.allowed_power_types is None or power_type in task.allowed_power_types)
+        and not (
+            definition.key == EQUIPMENT_TYPE_FIRE_ALARMS
+            and task.key == TASK_BATTERY
+            and battery_service_mode == BATTERY_SERVICE_SEALED_LIFE
+        )
     )

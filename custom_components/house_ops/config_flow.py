@@ -11,6 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    BATTERY_SERVICE_REPLACEABLE,
     CONF_ANODE_INTERVAL_DAYS,
     CONF_AREA_ID,
     CONF_ASSETS,
@@ -19,6 +20,7 @@ from .const import (
     CONF_BASE_INTERVAL_DAYS,
     CONF_BATTERY_INTERVAL_DAYS,
     CONF_BATTERY_SENSOR,
+    CONF_BATTERY_SERVICE_MODE,
     CONF_BATTERY_THRESHOLD,
     CONF_CONFIRM_REMOVE,
     CONF_CUSTOM_AREA,
@@ -36,17 +38,26 @@ from .const import (
     CONF_REPLACEMENT_INTERVAL_DAYS,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
+    CONF_SOURCE_ENTITY,
     CONF_USAGE_SENSOR,
     CONF_USAGE_THRESHOLD,
     DEFAULT_BATTERY_THRESHOLD,
     DEFAULT_INSTANCE_NAME,
     DOMAIN,
+    EQUIPMENT_TYPE_FIRE_ALARMS,
+    POWER_TYPE_WIRED,
     TASK_ANODE,
     TASK_BATTERY,
     TASK_INSPECTION,
     TASK_REPLACEMENT,
 )
-from .equipment_catalog import POWER_TYPE_LABELS, get_equipment_definition, get_supported_definitions, supports_battery
+from .equipment_catalog import (
+    BATTERY_SERVICE_MODE_LABELS,
+    POWER_TYPE_LABELS,
+    get_equipment_definition,
+    get_supported_definitions,
+    supports_battery,
+)
 from .registry import asset_summary, build_asset_from_input, dump_assets, find_asset, load_assets, remove_asset, upsert_asset
 
 CONF_NEXT_ACTION = "next_action"
@@ -112,10 +123,10 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             cleaned = _sanitize_asset_input(user_input)
-            if not cleaned[CONF_ASSET_NAME]:
+            asset = build_asset_from_input(self.hass, cleaned)
+            if not asset.name:
                 errors[CONF_ASSET_NAME] = "required"
             else:
-                asset = build_asset_from_input(self.hass, cleaned)
                 return self.async_create_entry(
                     title=self._instance_name,
                     data={CONF_INSTANCE_NAME: self._instance_name, CONF_ASSETS: dump_assets([asset])},
@@ -231,10 +242,10 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             cleaned = _sanitize_asset_input(user_input)
-            if not cleaned[CONF_ASSET_NAME]:
+            asset = build_asset_from_input(self.hass, cleaned, existing_assets=assets)
+            if not asset.name:
                 errors[CONF_ASSET_NAME] = "required"
             else:
-                asset = build_asset_from_input(self.hass, cleaned, existing_assets=assets)
                 updated_assets = upsert_asset(assets, asset)
                 return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
         return self.async_show_form(
@@ -273,15 +284,15 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             cleaned = _sanitize_asset_input(user_input)
-            if not cleaned[CONF_ASSET_NAME]:
+            updated = build_asset_from_input(
+                self.hass,
+                cleaned,
+                existing_assets=assets,
+                existing_asset=asset,
+            )
+            if not updated.name:
                 errors[CONF_ASSET_NAME] = "required"
             else:
-                updated = build_asset_from_input(
-                    self.hass,
-                    cleaned,
-                    existing_assets=assets,
-                    existing_asset=asset,
-                )
                 updated_assets = upsert_asset(assets, updated)
                 return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
 
@@ -340,11 +351,21 @@ def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> 
 
     _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector(), default=equipment_type)
     _add_required(schema, CONF_ASSET_NAME, selector.TextSelector(), default=defaults.get(CONF_ASSET_NAME, ""))
+    _add_optional(schema, CONF_SOURCE_ENTITY, _entity_selector(), default=defaults.get(CONF_SOURCE_ENTITY))
     _add_optional(schema, CONF_AREA_ID, selector.AreaSelector(), default=defaults.get(CONF_AREA_ID))
     _add_optional(schema, CONF_CUSTOM_AREA, selector.TextSelector(), default=defaults.get(CONF_CUSTOM_AREA))
 
     if len(definition.supported_power_types) > 1:
         _add_required(schema, CONF_POWER_TYPE, _power_selector(definition), default=power_type)
+
+    battery_service_mode = str(defaults.get(CONF_BATTERY_SERVICE_MODE, BATTERY_SERVICE_REPLACEABLE))
+    if definition.key == EQUIPMENT_TYPE_FIRE_ALARMS and power_type != POWER_TYPE_WIRED:
+        _add_required(
+            schema,
+            CONF_BATTERY_SERVICE_MODE,
+            _battery_service_mode_selector(),
+            default=battery_service_mode,
+        )
 
     _add_optional(schema, CONF_MANUFACTURER, selector.TextSelector(), default=defaults.get(CONF_MANUFACTURER))
     _add_optional(schema, CONF_MODEL, selector.TextSelector(), default=defaults.get(CONF_MODEL))
@@ -368,7 +389,7 @@ def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> 
         _add_optional(schema, CONF_USAGE_SENSOR, _entity_selector(["sensor", "number", "input_number"]), default=defaults.get(CONF_USAGE_SENSOR))
         _add_optional(schema, CONF_USAGE_THRESHOLD, _number_selector(0, 100000, 1), default=defaults.get(CONF_USAGE_THRESHOLD))
 
-    if supports_battery(definition, power_type):
+    if supports_battery(definition, power_type, battery_service_mode):
         _add_optional(schema, CONF_BATTERY_SENSOR, _entity_selector(["sensor", "number"]), default=defaults.get(CONF_BATTERY_SENSOR))
         _add_optional(schema, CONF_BATTERY_THRESHOLD, _number_selector(1, 100, 1), default=defaults.get(CONF_BATTERY_THRESHOLD, DEFAULT_BATTERY_THRESHOLD))
         _add_optional(schema, CONF_BATTERY_INTERVAL_DAYS, _number_selector(30, 730, 1), default=defaults.get(CONF_BATTERY_INTERVAL_DAYS))
@@ -385,6 +406,7 @@ def _defaults_for_new_asset(equipment_type: str) -> dict[str, Any]:
         CONF_EQUIPMENT_TYPE: equipment_type,
         CONF_BASE_INTERVAL_DAYS: next(task.default_interval_days for task in definition.tasks if task.key == definition.primary_task_key),
         CONF_POWER_TYPE: definition.default_power_type,
+        CONF_BATTERY_SERVICE_MODE: BATTERY_SERVICE_REPLACEABLE,
         CONF_BATTERY_THRESHOLD: DEFAULT_BATTERY_THRESHOLD,
     }
     for task in definition.tasks:
@@ -404,9 +426,11 @@ def _defaults_from_asset(asset) -> dict[str, Any]:
     defaults = {
         CONF_EQUIPMENT_TYPE: asset.equipment_type,
         CONF_ASSET_NAME: asset.name,
+        CONF_SOURCE_ENTITY: asset.source_entity,
         CONF_AREA_ID: asset.area_id,
         CONF_CUSTOM_AREA: None if asset.area_id else asset.area,
         CONF_POWER_TYPE: asset.power_type,
+        CONF_BATTERY_SERVICE_MODE: asset.battery_service_mode or BATTERY_SERVICE_REPLACEABLE,
         CONF_MANUFACTURER: asset.manufacturer,
         CONF_MODEL: asset.model,
         CONF_NOTES: asset.notes,
@@ -452,9 +476,11 @@ def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_NOTES,
         CONF_CUSTOM_AREA,
         CONF_AREA_ID,
+        CONF_SOURCE_ENTITY,
         CONF_RUNTIME_SENSOR,
         CONF_USAGE_SENSOR,
         CONF_BATTERY_SENSOR,
+        CONF_BATTERY_SERVICE_MODE,
     ):
         value = cleaned.get(key)
         if value in (None, ""):
@@ -513,8 +539,22 @@ def _number_selector(min_value: int | float, max_value: int | float, step: int |
     )
 
 
-def _entity_selector(domains: list[str]):
+def _entity_selector(domains: list[str] | None = None):
+    if domains is None:
+        return selector.EntitySelector(selector.EntitySelectorConfig())
     return selector.EntitySelector(selector.EntitySelectorConfig(domain=domains))
+
+
+def _battery_service_mode_selector():
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                selector.SelectOptionDict(value=value, label=label)
+                for value, label in BATTERY_SERVICE_MODE_LABELS.items()
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
 
 
 def _equipment_selector():
@@ -558,8 +598,8 @@ def _equipment_summary_text(assets) -> str:
     if not assets:
         return "No equipment has been added yet."
     return "\n".join(
-        f"- {asset.name} | {asset.equipment_type.replace('_', ' ')} | "
-        f"{asset.power_type.replace('_', ' ')} | {asset.area or 'No area'} | "
+        f"- {asset.name} | {get_equipment_definition(asset.equipment_type).label} | "
+        f"{POWER_TYPE_LABELS.get(asset.power_type, asset.power_type.replace('_', ' '))} | {asset.area or 'No area'} | "
         f"{', '.join(task.title for task in asset.tasks)}"
         for asset in assets
     )
