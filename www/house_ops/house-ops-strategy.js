@@ -21,9 +21,16 @@ const discoverAssets = (hass) =>
         stateObj.attributes.tasks !== undefined
     )
     .map((stateObj) => {
-      const slug = stripSuffix(stateObj.entity_id.replace("sensor.", ""), STATUS_SUFFIX);
+      const slug = stripSuffix(
+        stateObj.entity_id.replace("sensor.", ""),
+        STATUS_SUFFIX
+      );
       const name =
-        stateObj.attributes.friendly_name?.replace(/\s+Maintenance Status$/i, "") || titleize(slug);
+        stateObj.attributes.friendly_name?.replace(
+          /\s+Maintenance Status$/i,
+          ""
+        ) || titleize(slug);
+
       return {
         slug,
         name,
@@ -80,14 +87,23 @@ const buildOverviewView = (assets) => ({
     {
       type: "entities",
       title: "Maintenance status",
-      entities: assets.map((asset) => ({ entity: asset.status, name: asset.name })),
+      entities: assets.map((asset) => ({
+        entity: asset.status,
+        name: asset.name,
+      })),
     },
     {
       type: "entities",
       title: "Upcoming work",
       entities: assets.flatMap((asset) => [
-        { entity: asset.nextServiceDate, name: `${asset.name} next service` },
-        { entity: asset.daysRemaining, name: `${asset.name} days remaining` },
+        {
+          entity: asset.nextServiceDate,
+          name: `${asset.name} next service`,
+        },
+        {
+          entity: asset.daysRemaining,
+          name: `${asset.name} days remaining`,
+        },
       ]),
     },
     {
@@ -95,8 +111,16 @@ const buildOverviewView = (assets) => ({
       columns: 2,
       square: false,
       cards: assets.flatMap((asset) => [
-        buildButtonCard(asset.markServiced, `Mark ${asset.name} serviced`, "mdi:check"),
-        buildButtonCard(asset.snooze, `Snooze ${asset.name}`, "mdi:clock-outline"),
+        buildButtonCard(
+          asset.markServiced,
+          `Mark ${asset.name} serviced`,
+          "mdi:check"
+        ),
+        buildButtonCard(
+          asset.snooze,
+          `Snooze ${asset.name}`,
+          "mdi:clock-outline"
+        ),
       ]),
     },
   ],
@@ -110,7 +134,13 @@ const buildAssetView = (asset) => ({
     {
       type: "entities",
       title: asset.name,
-      entities: [asset.status, asset.nextServiceDate, asset.daysRemaining, asset.reason, asset.due],
+      entities: [
+        asset.status,
+        asset.nextServiceDate,
+        asset.daysRemaining,
+        asset.reason,
+        asset.due,
+      ],
     },
     {
       type: "horizontal-stack",
@@ -123,14 +153,19 @@ const buildAssetView = (asset) => ({
 });
 
 class HouseOpsDashboardStrategy extends HTMLElement {
-  static async generateDashboard(info) {
-    const assets = discoverAssets(info.hass);
+  static async generate(config, hass) {
+    const assets = discoverAssets(hass);
+
     if (!assets.length) {
       return buildEmptyDashboard();
     }
+
     return {
       title: "HouseOps",
-      views: [buildOverviewView(assets), ...assets.map((asset) => buildAssetView(asset))],
+      views: [
+        buildOverviewView(assets),
+        ...assets.map((asset) => buildAssetView(asset)),
+      ],
     };
   }
 }
