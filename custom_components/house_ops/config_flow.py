@@ -12,6 +12,9 @@ from homeassistant.helpers import selector
 
 from .const import (
     BATTERY_SERVICE_REPLACEABLE,
+    CATALOG_TIER_ADVANCED,
+    CATALOG_TIER_BASIC,
+    CONF_ADD_ANOTHER_TASK,
     CONF_ANODE_INTERVAL_DAYS,
     CONF_AREA_ID,
     CONF_ASSETS,
@@ -22,29 +25,49 @@ from .const import (
     CONF_BATTERY_SENSOR,
     CONF_BATTERY_SERVICE_MODE,
     CONF_BATTERY_THRESHOLD,
+    CONF_CATALOG_TIER,
+    CONF_CATALOG_VIEW,
     CONF_CONFIRM_REMOVE,
     CONF_CUSTOM_AREA,
+    CONF_CUSTOM_CATEGORY,
+    CONF_DWELLING_TYPE,
     CONF_ENABLE_ANODE_TASK,
     CONF_EQUIPMENT_TYPE,
+    CONF_HOME_PROFILE,
     CONF_INSTALL_DATE,
-    CONF_INSPECTION_INTERVAL_DAYS,
     CONF_INSTANCE_NAME,
+    CONF_INSPECTION_INTERVAL_DAYS,
     CONF_LAST_SERVICED_DATE,
     CONF_MANUFACTURER,
     CONF_MODEL,
+    CONF_NEXT_ACTION,
     CONF_NEXT_DUE_OVERRIDE,
     CONF_NOTES,
+    CONF_OWNERSHIP_TYPE,
     CONF_POWER_TYPE,
     CONF_REPLACEMENT_INTERVAL_DAYS,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
     CONF_SOURCE_ENTITY,
+    CONF_TASK_INTERVAL_DAYS,
+    CONF_TASK_LAST_SERVICED_DATE,
+    CONF_TASK_NEXT_DUE_OVERRIDE,
+    CONF_TASK_TITLE,
     CONF_USAGE_SENSOR,
     CONF_USAGE_THRESHOLD,
     DEFAULT_BATTERY_THRESHOLD,
     DEFAULT_INSTANCE_NAME,
     DOMAIN,
+    DWELLING_TYPE_APARTMENT,
+    DWELLING_TYPE_CONDO,
+    DWELLING_TYPE_MOBILE_HOME,
+    DWELLING_TYPE_MULTI_FAMILY,
+    DWELLING_TYPE_SINGLE_FAMILY,
+    DWELLING_TYPE_TOWNHOME,
+    EQUIPMENT_TYPE_CUSTOM,
     EQUIPMENT_TYPE_FIRE_ALARMS,
+    OWNERSHIP_TYPE_OWNER,
+    OWNERSHIP_TYPE_RENTER,
     POWER_TYPE_WIRED,
     TASK_ANODE,
     TASK_BATTERY,
@@ -54,13 +77,27 @@ from .const import (
 from .equipment_catalog import (
     BATTERY_SERVICE_MODE_LABELS,
     POWER_TYPE_LABELS,
+    EquipmentDefinition,
+    build_custom_definition,
     get_equipment_definition,
+    get_recommended_definitions,
+    get_supported_categories,
     get_supported_definitions,
     supports_battery,
 )
-from .registry import asset_summary, build_asset_from_input, dump_assets, find_asset, load_assets, remove_asset, upsert_asset
-
-CONF_NEXT_ACTION = "next_action"
+from .registry import (
+    asset_summary,
+    build_asset_from_input,
+    build_home_profile_from_input,
+    default_home_profile,
+    dump_assets,
+    dump_home_profile,
+    find_asset,
+    load_assets,
+    load_profile_from_entry,
+    remove_asset,
+    upsert_asset,
+)
 
 
 class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -70,7 +107,11 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._instance_name = DEFAULT_INSTANCE_NAME
+        self._profile = default_home_profile()
         self._selected_equipment_type: str | None = None
+        self._catalog_view = CATALOG_TIER_BASIC
+        self._custom_asset_input: dict[str, Any] = {}
+        self._custom_tasks: list[dict[str, Any]] = []
 
     @staticmethod
     @callback
@@ -84,7 +125,7 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             instance_name = str(user_input[CONF_INSTANCE_NAME]).strip()
             self._instance_name = instance_name or DEFAULT_INSTANCE_NAME
-            return await self.async_step_add_equipment()
+            return await self.async_step_home_profile()
 
         return self.async_show_form(
             step_id="user",
@@ -95,26 +136,98 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    async def async_step_add_equipment(self, user_input: dict[str, Any] | None = None):
+    async def async_step_home_profile(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
-            self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
-            return await self.async_step_add_equipment_details()
+            self._profile = build_home_profile_from_input(user_input)
+            return await self.async_step_add_system()
+        return self.async_show_form(step_id="home_profile", data_schema=_home_profile_schema(self._profile))
 
+    async def async_step_add_system(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            return await self._async_handle_add_system_action(user_input[CONF_NEXT_ACTION])
         return self.async_show_form(
-            step_id="add_equipment",
+            step_id="add_system",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_EQUIPMENT_TYPE): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                selector.SelectOptionDict(value=definition.key, label=definition.label)
-                                for definition in get_supported_definitions()
-                            ],
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                        )
+                    vol.Required(CONF_NEXT_ACTION): _action_selector(
+                        [
+                            ("recommended_systems", "Recommended systems"),
+                            ("browse_systems", "Browse all templates"),
+                            ("create_custom_system", "Create custom system"),
+                        ]
                     )
                 }
             ),
+            description_placeholders={"equipment_summary": _definition_summary_text(get_recommended_definitions(self._profile))},
+        )
+
+    async def async_step_recommended_systems(self, user_input: dict[str, Any] | None = None):
+        definitions = get_recommended_definitions(self._profile)
+        if user_input is not None:
+            self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
+            return await self.async_step_add_equipment_details()
+        return self.async_show_form(
+            step_id="recommended_systems",
+            data_schema=vol.Schema({vol.Required(CONF_EQUIPMENT_TYPE): _definition_selector(definitions)}),
+            description_placeholders={"equipment_summary": _definition_summary_text(definitions)},
+        )
+
+    async def async_step_browse_systems(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            self._catalog_view = str(user_input[CONF_CATALOG_VIEW])
+            self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
+            return await self.async_step_add_equipment_details()
+        definitions = get_supported_definitions(
+            profile=self._profile,
+            tier=None if self._catalog_view == "all" else self._catalog_view,
+        )
+        return self.async_show_form(
+            step_id="browse_systems",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_CATALOG_VIEW, default=self._catalog_view): _catalog_view_selector(),
+                    vol.Required(CONF_EQUIPMENT_TYPE): _definition_selector(definitions),
+                }
+            ),
+            description_placeholders={"equipment_summary": _definition_summary_text(definitions)},
+        )
+
+    async def async_step_create_custom_system(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            cleaned = _sanitize_asset_input(user_input)
+            if not cleaned.get(CONF_ASSET_NAME):
+                errors[CONF_ASSET_NAME] = "required"
+            else:
+                self._custom_asset_input = cleaned
+                self._custom_tasks = []
+                return await self.async_step_custom_system_task()
+        defaults = {
+            CONF_EQUIPMENT_TYPE: EQUIPMENT_TYPE_CUSTOM,
+            CONF_CATALOG_TIER: CATALOG_TIER_ADVANCED,
+        }
+        return self.async_show_form(
+            step_id="create_custom_system",
+            data_schema=_build_custom_asset_schema(self._profile, defaults),
+            errors=errors,
+        )
+
+    async def async_step_custom_system_task(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            cleaned = _sanitize_custom_task_input(user_input)
+            if not cleaned.get(CONF_TASK_TITLE):
+                errors[CONF_TASK_TITLE] = "required"
+            else:
+                self._custom_tasks.append(cleaned)
+                if cleaned.get(CONF_ADD_ANOTHER_TASK):
+                    return await self.async_step_custom_system_task()
+                return await self._async_finish_initial_entry()
+        return self.async_show_form(
+            step_id="custom_system_task",
+            data_schema=_custom_task_schema(add_another_default=len(self._custom_tasks) == 0),
+            errors=errors,
+            description_placeholders={"task_count": str(len(self._custom_tasks))},
         )
 
     async def async_step_add_equipment_details(self, user_input: dict[str, Any] | None = None):
@@ -127,20 +240,38 @@ class HouseOpsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not asset.name:
                 errors[CONF_ASSET_NAME] = "required"
             else:
-                return self.async_create_entry(
-                    title=self._instance_name,
-                    data={CONF_INSTANCE_NAME: self._instance_name, CONF_ASSETS: dump_assets([asset])},
-                )
+                return await self._async_finish_initial_entry(asset)
 
         defaults = _defaults_for_new_asset(definition.key)
         return self.async_show_form(
             step_id="add_equipment_details",
-            data_schema=_build_asset_schema(self.hass, definition.key, defaults),
+            data_schema=_build_asset_schema(definition, defaults),
             errors=errors,
             description_placeholders={
                 "equipment_label": definition.label,
                 "equipment_description": definition.description,
-                "primary_task": _primary_task_label(definition.key),
+                "primary_task": _primary_task_label(definition),
+            },
+        )
+
+    async def _async_handle_add_system_action(self, selected_action: str):
+        if selected_action == "recommended_systems":
+            return await self.async_step_recommended_systems()
+        if selected_action == "browse_systems":
+            return await self.async_step_browse_systems()
+        return await self.async_step_create_custom_system()
+
+    async def _async_finish_initial_entry(self, asset=None):
+        if asset is None:
+            payload = dict(self._custom_asset_input)
+            payload["custom_tasks"] = self._custom_tasks
+            asset = build_asset_from_input(self.hass, payload)
+        return self.async_create_entry(
+            title=self._instance_name,
+            data={
+                CONF_INSTANCE_NAME: self._instance_name,
+                CONF_ASSETS: dump_assets([asset]),
+                CONF_HOME_PROFILE: dump_home_profile(self._profile),
             },
         )
 
@@ -152,6 +283,10 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry
         self._selected_asset_id: str | None = None
         self._selected_equipment_type: str | None = None
+        self._catalog_view = CATALOG_TIER_BASIC
+        self._profile = load_profile_from_entry(config_entry)
+        self._custom_asset_input: dict[str, Any] = {}
+        self._custom_tasks: list[dict[str, Any]] = []
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         assets = _load_entry_assets(self._config_entry)
@@ -163,16 +298,23 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(CONF_NEXT_ACTION): _action_selector(
                         [
-                            ("review_equipment", "Review equipment"),
-                            ("add_equipment", "Add equipment"),
-                            ("edit_equipment", "Edit equipment"),
-                            ("remove_equipment", "Remove equipment"),
+                            ("review_equipment", "Review systems"),
+                            ("add_system", "Add system"),
+                            ("edit_equipment", "Edit system"),
+                            ("remove_equipment", "Remove system"),
+                            ("edit_home_profile", "Edit home profile"),
                         ]
                     )
                 }
             ),
-            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets, self._profile)},
         )
+
+    async def async_step_edit_home_profile(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            self._profile = build_home_profile_from_input(user_input)
+            return self.async_create_entry(title="", data=self._options_payload())
+        return self.async_show_form(step_id="edit_home_profile", data_schema=_home_profile_schema(self._profile))
 
     async def async_step_review_equipment(self, user_input: dict[str, Any] | None = None):
         assets = _load_entry_assets(self._config_entry)
@@ -184,7 +326,7 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="review_equipment",
             data_schema=_asset_select_schema(assets),
-            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets, self._profile)},
         )
 
     async def async_step_review_equipment_details(self, user_input: dict[str, Any] | None = None):
@@ -205,9 +347,9 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(CONF_NEXT_ACTION): _action_selector(
                         [
-                            ("edit_selected_equipment", "Edit this equipment"),
-                            ("remove_selected_equipment", "Remove this equipment"),
-                            ("back_to_manage", "Back to equipment manager"),
+                            ("edit_selected_equipment", "Edit this system"),
+                            ("remove_selected_equipment", "Remove this system"),
+                            ("back_to_manage", "Back to system manager"),
                         ]
                     )
                 }
@@ -215,25 +357,97 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={"asset_summary": asset_summary(asset)},
         )
 
-    async def async_step_add_equipment(self, user_input: dict[str, Any] | None = None):
+    async def async_step_add_system(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            action = str(user_input[CONF_NEXT_ACTION])
+            if action == "recommended_systems":
+                return await self.async_step_recommended_systems()
+            if action == "browse_systems":
+                return await self.async_step_browse_systems()
+            return await self.async_step_create_custom_system()
+        return self.async_show_form(
+            step_id="add_system",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NEXT_ACTION): _action_selector(
+                        [
+                            ("recommended_systems", "Recommended systems"),
+                            ("browse_systems", "Browse all templates"),
+                            ("create_custom_system", "Create custom system"),
+                        ]
+                    )
+                }
+            ),
+            description_placeholders={"equipment_summary": _definition_summary_text(get_recommended_definitions(self._profile))},
+        )
+
+    async def async_step_recommended_systems(self, user_input: dict[str, Any] | None = None):
+        definitions = get_recommended_definitions(self._profile)
         if user_input is not None:
             self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
             return await self.async_step_add_equipment_details()
         return self.async_show_form(
-            step_id="add_equipment",
+            step_id="recommended_systems",
+            data_schema=vol.Schema({vol.Required(CONF_EQUIPMENT_TYPE): _definition_selector(definitions)}),
+            description_placeholders={"equipment_summary": _definition_summary_text(definitions)},
+        )
+
+    async def async_step_browse_systems(self, user_input: dict[str, Any] | None = None):
+        if user_input is not None:
+            self._catalog_view = str(user_input[CONF_CATALOG_VIEW])
+            self._selected_equipment_type = str(user_input[CONF_EQUIPMENT_TYPE])
+            return await self.async_step_add_equipment_details()
+        definitions = get_supported_definitions(
+            profile=self._profile,
+            tier=None if self._catalog_view == "all" else self._catalog_view,
+        )
+        return self.async_show_form(
+            step_id="browse_systems",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_EQUIPMENT_TYPE): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                selector.SelectOptionDict(value=definition.key, label=definition.label)
-                                for definition in get_supported_definitions()
-                            ],
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                        )
-                    )
+                    vol.Required(CONF_CATALOG_VIEW, default=self._catalog_view): _catalog_view_selector(),
+                    vol.Required(CONF_EQUIPMENT_TYPE): _definition_selector(definitions),
                 }
             ),
+            description_placeholders={"equipment_summary": _definition_summary_text(definitions)},
+        )
+
+    async def async_step_create_custom_system(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            cleaned = _sanitize_asset_input(user_input)
+            if not cleaned.get(CONF_ASSET_NAME):
+                errors[CONF_ASSET_NAME] = "required"
+            else:
+                self._custom_asset_input = cleaned
+                self._custom_tasks = []
+                return await self.async_step_custom_system_task()
+        defaults = {
+            CONF_EQUIPMENT_TYPE: EQUIPMENT_TYPE_CUSTOM,
+            CONF_CATALOG_TIER: CATALOG_TIER_ADVANCED,
+        }
+        return self.async_show_form(
+            step_id="create_custom_system",
+            data_schema=_build_custom_asset_schema(self._profile, defaults),
+            errors=errors,
+        )
+
+    async def async_step_custom_system_task(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            cleaned = _sanitize_custom_task_input(user_input)
+            if not cleaned.get(CONF_TASK_TITLE):
+                errors[CONF_TASK_TITLE] = "required"
+            else:
+                self._custom_tasks.append(cleaned)
+                if cleaned.get(CONF_ADD_ANOTHER_TASK):
+                    return await self.async_step_custom_system_task()
+                return await self._async_create_or_update_custom_asset()
+        return self.async_show_form(
+            step_id="custom_system_task",
+            data_schema=_custom_task_schema(add_another_default=len(self._custom_tasks) == 0),
+            errors=errors,
+            description_placeholders={"task_count": str(len(self._custom_tasks))},
         )
 
     async def async_step_add_equipment_details(self, user_input: dict[str, Any] | None = None):
@@ -247,15 +461,15 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_ASSET_NAME] = "required"
             else:
                 updated_assets = upsert_asset(assets, asset)
-                return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
+                return self.async_create_entry(title="", data=self._options_payload(assets=updated_assets))
         return self.async_show_form(
             step_id="add_equipment_details",
-            data_schema=_build_asset_schema(self.hass, definition.key, _defaults_for_new_asset(definition.key)),
+            data_schema=_build_asset_schema(definition, _defaults_for_new_asset(definition.key)),
             errors=errors,
             description_placeholders={
                 "equipment_label": definition.label,
                 "equipment_description": definition.description,
-                "primary_task": _primary_task_label(definition.key),
+                "primary_task": _primary_task_label(definition),
             },
         )
 
@@ -269,7 +483,7 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="edit_equipment",
             data_schema=_asset_select_schema(assets),
-            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets, self._profile)},
         )
 
     async def async_step_edit_selected_equipment(self, user_input: dict[str, Any] | None = None):
@@ -284,6 +498,9 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             cleaned = _sanitize_asset_input(user_input)
+            if asset.is_custom:
+                cleaned["custom_tasks"] = [_task_to_flow_default(task) for task in asset.tasks]
+                cleaned[CONF_EQUIPMENT_TYPE] = EQUIPMENT_TYPE_CUSTOM
             updated = build_asset_from_input(
                 self.hass,
                 cleaned,
@@ -294,16 +511,24 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_ASSET_NAME] = "required"
             else:
                 updated_assets = upsert_asset(assets, updated)
-                return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
+                return self.async_create_entry(title="", data=self._options_payload(assets=updated_assets))
 
+        if asset.is_custom:
+            return self.async_show_form(
+                step_id="edit_equipment_details",
+                data_schema=_build_custom_asset_schema(self._profile, _defaults_from_custom_asset(asset)),
+                errors=errors,
+            )
+
+        definition = get_equipment_definition(asset.equipment_type)
         return self.async_show_form(
             step_id="edit_equipment_details",
-            data_schema=_build_asset_schema(self.hass, asset.equipment_type, _defaults_from_asset(asset)),
+            data_schema=_build_asset_schema(definition, _defaults_from_asset(asset)),
             errors=errors,
             description_placeholders={
                 "equipment_label": asset.name,
                 "equipment_description": asset_summary(asset),
-                "primary_task": _primary_task_label(asset.equipment_type),
+                "primary_task": _primary_task_label(definition),
             },
         )
 
@@ -317,7 +542,7 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="remove_equipment",
             data_schema=_asset_select_schema(assets),
-            description_placeholders={"equipment_summary": _equipment_summary_text(assets)},
+            description_placeholders={"equipment_summary": _equipment_summary_text(assets, self._profile)},
         )
 
     async def async_step_remove_selected_equipment(self, user_input: dict[str, Any] | None = None):
@@ -327,7 +552,7 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
             return self.async_abort(reason="asset_not_found")
         if user_input is not None and user_input.get(CONF_CONFIRM_REMOVE):
             updated_assets = remove_asset(assets, asset.asset_id)
-            return self.async_create_entry(title="", data={CONF_ASSETS: dump_assets(updated_assets)})
+            return self.async_create_entry(title="", data=self._options_payload(assets=updated_assets))
         return self.async_show_form(
             step_id="remove_selected_equipment",
             data_schema=vol.Schema({vol.Required(CONF_CONFIRM_REMOVE, default=False): selector.BooleanSelector()}),
@@ -337,19 +562,35 @@ class HouseOpsOptionsFlow(config_entries.OptionsFlow):
     async def _async_handle_manage_action(self, selected_action: str):
         if selected_action == "review_equipment":
             return await self.async_step_review_equipment()
-        if selected_action == "add_equipment":
-            return await self.async_step_add_equipment()
+        if selected_action == "add_system":
+            return await self.async_step_add_system()
         if selected_action == "edit_equipment":
             return await self.async_step_edit_equipment()
+        if selected_action == "edit_home_profile":
+            return await self.async_step_edit_home_profile()
         return await self.async_step_remove_equipment()
 
+    async def _async_create_or_update_custom_asset(self):
+        assets = _load_entry_assets(self._config_entry)
+        payload = dict(self._custom_asset_input)
+        payload["custom_tasks"] = self._custom_tasks
+        asset = build_asset_from_input(self.hass, payload, existing_assets=assets)
+        updated_assets = upsert_asset(assets, asset)
+        return self.async_create_entry(title="", data=self._options_payload(assets=updated_assets))
 
-def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> vol.Schema:
-    definition = get_equipment_definition(equipment_type)
+    def _options_payload(self, *, assets=None) -> dict[str, Any]:
+        current_assets = assets if assets is not None else _load_entry_assets(self._config_entry)
+        return {
+            CONF_ASSETS: dump_assets(current_assets),
+            CONF_HOME_PROFILE: dump_home_profile(self._profile),
+        }
+
+
+def _build_asset_schema(definition: EquipmentDefinition, defaults: dict[str, Any]) -> vol.Schema:
     power_type = str(defaults.get(CONF_POWER_TYPE, definition.default_power_type))
     schema: dict[Any, Any] = {}
 
-    _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector(), default=equipment_type)
+    _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector((definition,)), default=definition.key)
     _add_required(schema, CONF_ASSET_NAME, selector.TextSelector(), default=defaults.get(CONF_ASSET_NAME, ""))
     _add_optional(schema, CONF_SOURCE_ENTITY, _device_selector(), default=defaults.get(CONF_SOURCE_ENTITY))
     _add_optional(schema, CONF_AREA_ID, selector.AreaSelector(), default=defaults.get(CONF_AREA_ID))
@@ -360,12 +601,7 @@ def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> 
 
     battery_service_mode = str(defaults.get(CONF_BATTERY_SERVICE_MODE, BATTERY_SERVICE_REPLACEABLE))
     if definition.key == EQUIPMENT_TYPE_FIRE_ALARMS and power_type != POWER_TYPE_WIRED:
-        _add_required(
-            schema,
-            CONF_BATTERY_SERVICE_MODE,
-            _battery_service_mode_selector(),
-            default=battery_service_mode,
-        )
+        _add_required(schema, CONF_BATTERY_SERVICE_MODE, _battery_service_mode_selector(), default=battery_service_mode)
 
     _add_optional(schema, CONF_MANUFACTURER, selector.TextSelector(), default=defaults.get(CONF_MANUFACTURER))
     _add_optional(schema, CONF_MODEL, selector.TextSelector(), default=defaults.get(CONF_MODEL))
@@ -375,15 +611,15 @@ def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> 
     _add_optional(schema, CONF_NEXT_DUE_OVERRIDE, selector.DateSelector(), default=defaults.get(CONF_NEXT_DUE_OVERRIDE))
     _add_required(schema, CONF_BASE_INTERVAL_DAYS, _number_selector(1, 3650, 1), default=defaults[CONF_BASE_INTERVAL_DAYS])
 
-    if _task_exists(definition.key, TASK_INSPECTION):
+    if _task_exists(definition, TASK_INSPECTION):
         _add_optional(schema, CONF_INSPECTION_INTERVAL_DAYS, _number_selector(30, 3650, 1), default=defaults.get(CONF_INSPECTION_INTERVAL_DAYS))
 
-    if _task_exists(definition.key, TASK_ANODE):
+    if _task_exists(definition, TASK_ANODE):
         _add_optional(schema, CONF_ENABLE_ANODE_TASK, selector.BooleanSelector(), default=defaults.get(CONF_ENABLE_ANODE_TASK, False))
         if defaults.get(CONF_ENABLE_ANODE_TASK):
             _add_optional(schema, CONF_ANODE_INTERVAL_DAYS, _number_selector(180, 3650, 1), default=defaults.get(CONF_ANODE_INTERVAL_DAYS))
 
-    if _show_sensor_section(definition.key):
+    if _show_sensor_section(definition):
         _add_optional(schema, CONF_RUNTIME_SENSOR, _entity_selector(["sensor", "number", "input_number"]), default=defaults.get(CONF_RUNTIME_SENSOR))
         _add_optional(schema, CONF_RUNTIME_THRESHOLD, _number_selector(0, 100000, 1), default=defaults.get(CONF_RUNTIME_THRESHOLD))
         _add_optional(schema, CONF_USAGE_SENSOR, _entity_selector(["sensor", "number", "input_number"]), default=defaults.get(CONF_USAGE_SENSOR))
@@ -394,9 +630,35 @@ def _build_asset_schema(hass, equipment_type: str, defaults: dict[str, Any]) -> 
         _add_optional(schema, CONF_BATTERY_THRESHOLD, _number_selector(1, 100, 1), default=defaults.get(CONF_BATTERY_THRESHOLD, DEFAULT_BATTERY_THRESHOLD))
         _add_optional(schema, CONF_BATTERY_INTERVAL_DAYS, _number_selector(30, 730, 1), default=defaults.get(CONF_BATTERY_INTERVAL_DAYS))
 
-    if _task_exists(definition.key, TASK_REPLACEMENT):
+    if _task_exists(definition, TASK_REPLACEMENT):
         _add_optional(schema, CONF_REPLACEMENT_INTERVAL_DAYS, _number_selector(365, 7300, 1), default=defaults.get(CONF_REPLACEMENT_INTERVAL_DAYS))
 
+    return vol.Schema(schema)
+
+
+def _build_custom_asset_schema(profile, defaults: dict[str, Any]) -> vol.Schema:
+    categories = get_supported_categories(profile=profile)
+    custom_definition = build_custom_definition("Custom system", defaults.get(CONF_CUSTOM_CATEGORY, "Custom"))
+    schema: dict[Any, Any] = {}
+    _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector((custom_definition,)), default=EQUIPMENT_TYPE_CUSTOM)
+    _add_required(schema, CONF_ASSET_NAME, selector.TextSelector(), default=defaults.get(CONF_ASSET_NAME, ""))
+    _add_optional(
+        schema,
+        CONF_CUSTOM_CATEGORY,
+        selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(categories), custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN)
+        ),
+        default=defaults.get(CONF_CUSTOM_CATEGORY),
+    )
+    _add_optional(schema, CONF_SOURCE_ENTITY, _device_selector(), default=defaults.get(CONF_SOURCE_ENTITY))
+    _add_optional(schema, CONF_AREA_ID, selector.AreaSelector(), default=defaults.get(CONF_AREA_ID))
+    _add_optional(schema, CONF_CUSTOM_AREA, selector.TextSelector(), default=defaults.get(CONF_CUSTOM_AREA))
+    _add_optional(schema, CONF_MANUFACTURER, selector.TextSelector(), default=defaults.get(CONF_MANUFACTURER))
+    _add_optional(schema, CONF_MODEL, selector.TextSelector(), default=defaults.get(CONF_MODEL))
+    _add_optional(schema, CONF_NOTES, selector.TextSelector(selector.TextSelectorConfig(multiline=True)), default=defaults.get(CONF_NOTES))
+    _add_optional(schema, CONF_INSTALL_DATE, selector.DateSelector(), default=defaults.get(CONF_INSTALL_DATE))
+    _add_optional(schema, CONF_LAST_SERVICED_DATE, selector.DateSelector(), default=defaults.get(CONF_LAST_SERVICED_DATE))
+    _add_optional(schema, CONF_CATALOG_TIER, _catalog_tier_selector(), default=defaults.get(CONF_CATALOG_TIER, CATALOG_TIER_ADVANCED))
     return vol.Schema(schema)
 
 
@@ -437,10 +699,7 @@ def _defaults_from_asset(asset) -> dict[str, Any]:
         CONF_INSTALL_DATE: asset.install_date,
         CONF_LAST_SERVICED_DATE: asset.last_serviced_date,
         CONF_BASE_INTERVAL_DAYS: next(task.base_interval_days for task in asset.tasks if task.key == asset.primary_task_key),
-        CONF_NEXT_DUE_OVERRIDE: next(
-            (task.next_due_override for task in asset.tasks if task.key == asset.primary_task_key),
-            None,
-        ),
+        CONF_NEXT_DUE_OVERRIDE: next((task.next_due_override for task in asset.tasks if task.key == asset.primary_task_key), None),
     }
     for task in asset.tasks:
         if task.key == TASK_INSPECTION:
@@ -465,6 +724,33 @@ def _defaults_from_asset(asset) -> dict[str, Any]:
     return defaults
 
 
+def _defaults_from_custom_asset(asset) -> dict[str, Any]:
+    return {
+        CONF_EQUIPMENT_TYPE: EQUIPMENT_TYPE_CUSTOM,
+        CONF_ASSET_NAME: asset.name,
+        CONF_SOURCE_ENTITY: asset.source_entity,
+        CONF_AREA_ID: asset.area_id,
+        CONF_CUSTOM_AREA: None if asset.area_id else asset.area,
+        CONF_CUSTOM_CATEGORY: asset.custom_category or asset.category,
+        CONF_MANUFACTURER: asset.manufacturer,
+        CONF_MODEL: asset.model,
+        CONF_NOTES: asset.notes,
+        CONF_INSTALL_DATE: asset.install_date,
+        CONF_LAST_SERVICED_DATE: asset.last_serviced_date,
+        CONF_CATALOG_TIER: asset.catalog_tier or CATALOG_TIER_ADVANCED,
+    }
+
+
+def _task_to_flow_default(task) -> dict[str, Any]:
+    return {
+        "key": task.key,
+        CONF_TASK_TITLE: task.title,
+        CONF_TASK_INTERVAL_DAYS: task.base_interval_days,
+        CONF_TASK_LAST_SERVICED_DATE: task.last_serviced_date,
+        CONF_TASK_NEXT_DUE_OVERRIDE: task.next_due_override,
+    }
+
+
 def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
     cleaned = dict(user_input)
     cleaned[CONF_ASSET_NAME] = str(cleaned.get(CONF_ASSET_NAME, "")).strip()
@@ -481,6 +767,8 @@ def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_USAGE_SENSOR,
         CONF_BATTERY_SENSOR,
         CONF_BATTERY_SERVICE_MODE,
+        CONF_CUSTOM_CATEGORY,
+        CONF_CATALOG_TIER,
     ):
         value = cleaned.get(key)
         if value in (None, ""):
@@ -519,6 +807,20 @@ def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
         cleaned.pop(CONF_POWER_TYPE, None)
 
     cleaned[CONF_ENABLE_ANODE_TASK] = bool(cleaned.get(CONF_ENABLE_ANODE_TASK, False))
+    return cleaned
+
+
+def _sanitize_custom_task_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    cleaned = dict(user_input)
+    cleaned[CONF_TASK_TITLE] = str(cleaned.get(CONF_TASK_TITLE, "")).strip()
+    for key in (CONF_TASK_LAST_SERVICED_DATE, CONF_TASK_NEXT_DUE_OVERRIDE):
+        value = cleaned.get(key)
+        if value in (None, ""):
+            cleaned.pop(key, None)
+        elif not isinstance(value, date):
+            cleaned[key] = date.fromisoformat(str(value))
+    if cleaned.get(CONF_TASK_INTERVAL_DAYS) not in (None, ""):
+        cleaned[CONF_TASK_INTERVAL_DAYS] = int(cleaned[CONF_TASK_INTERVAL_DAYS])
     return cleaned
 
 
@@ -561,12 +863,41 @@ def _battery_service_mode_selector():
     )
 
 
-def _equipment_selector():
+def _definition_selector(definitions: tuple[EquipmentDefinition, ...]):
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
             options=[
-                selector.SelectOptionDict(value=definition.key, label=definition.label)
-                for definition in get_supported_definitions()
+                selector.SelectOptionDict(value=definition.key, label=f"{definition.label} ({definition.category})")
+                for definition in definitions
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _equipment_selector(definitions: tuple[EquipmentDefinition, ...]):
+    return _definition_selector(definitions)
+
+
+def _catalog_view_selector():
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                selector.SelectOptionDict(value=CATALOG_TIER_BASIC, label="Basic"),
+                selector.SelectOptionDict(value=CATALOG_TIER_ADVANCED, label="Advanced"),
+                selector.SelectOptionDict(value="all", label="All systems"),
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _catalog_tier_selector():
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                selector.SelectOptionDict(value=CATALOG_TIER_BASIC, label="Basic"),
+                selector.SelectOptionDict(value=CATALOG_TIER_ADVANCED, label="Advanced"),
             ],
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
@@ -598,33 +929,76 @@ def _asset_select_schema(assets) -> vol.Schema:
     )
 
 
-def _equipment_summary_text(assets) -> str:
-    if not assets:
-        return "No equipment has been added yet."
-    return "\n".join(
-        f"- {asset.name} | {get_equipment_definition(asset.equipment_type).label} | "
-        f"{POWER_TYPE_LABELS.get(asset.power_type, asset.power_type.replace('_', ' '))} | {asset.area or 'No area'} | "
-        f"{', '.join(task.title for task in asset.tasks)}"
-        for asset in assets
+def _home_profile_schema(profile) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_DWELLING_TYPE, default=profile.dwelling_type): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value=DWELLING_TYPE_APARTMENT, label="Apartment"),
+                        selector.SelectOptionDict(value=DWELLING_TYPE_CONDO, label="Condo"),
+                        selector.SelectOptionDict(value=DWELLING_TYPE_TOWNHOME, label="Townhome"),
+                        selector.SelectOptionDict(value=DWELLING_TYPE_SINGLE_FAMILY, label="Single-family house"),
+                        selector.SelectOptionDict(value=DWELLING_TYPE_MULTI_FAMILY, label="Multi-family home"),
+                        selector.SelectOptionDict(value=DWELLING_TYPE_MOBILE_HOME, label="Mobile home"),
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(CONF_OWNERSHIP_TYPE, default=profile.ownership_type): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value=OWNERSHIP_TYPE_RENTER, label="Renter"),
+                        selector.SelectOptionDict(value=OWNERSHIP_TYPE_OWNER, label="Owner"),
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
     )
+
+
+def _custom_task_schema(*, add_another_default: bool) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_TASK_TITLE): selector.TextSelector(),
+            vol.Required(CONF_TASK_INTERVAL_DAYS, default=90): _number_selector(1, 3650, 1),
+            vol.Optional(CONF_TASK_LAST_SERVICED_DATE): selector.DateSelector(),
+            vol.Optional(CONF_TASK_NEXT_DUE_OVERRIDE): selector.DateSelector(),
+            vol.Required(CONF_ADD_ANOTHER_TASK, default=add_another_default): selector.BooleanSelector(),
+        }
+    )
+
+
+def _equipment_summary_text(assets, profile) -> str:
+    if not assets:
+        recommended = get_recommended_definitions(profile)
+        if not recommended:
+            return "No systems have been added yet."
+        return "No systems have been added yet.\nRecommended:\n" + _definition_summary_text(recommended)
+    return "\n".join(f"- {asset_summary(asset)}" for asset in assets)
+
+
+def _definition_summary_text(definitions: tuple[EquipmentDefinition, ...]) -> str:
+    if not definitions:
+        return "No matching systems for this home profile."
+    return "\n".join(f"- {definition.label} | {definition.category} | {definition.tier}" for definition in definitions[:20])
 
 
 def _load_entry_assets(config_entry):
     return load_assets(config_entry.options.get(CONF_ASSETS, config_entry.data.get(CONF_ASSETS, [])))
 
 
-def _primary_task_label(equipment_type: str) -> str:
-    definition = get_equipment_definition(equipment_type)
+def _primary_task_label(definition: EquipmentDefinition) -> str:
     return next(task.title for task in definition.tasks if task.key == definition.primary_task_key)
 
 
-def _task_exists(equipment_type: str, task_key: str) -> bool:
-    definition = get_equipment_definition(equipment_type)
+def _task_exists(definition: EquipmentDefinition, task_key: str) -> bool:
     return any(task.key == task_key for task in definition.tasks)
 
 
-def _show_sensor_section(equipment_type: str) -> bool:
-    return equipment_type != "fire_alarms"
+def _show_sensor_section(definition: EquipmentDefinition) -> bool:
+    return definition.key in {"furnace", "water_heater"}
 
 
 def _action_selector(options: list[tuple[str, str]]):

@@ -9,19 +9,71 @@
           "instance_name": "Workspace name"
         }
       },
-      "add_equipment": {
-        "title": "Choose equipment type",
-        "description": "Select the kind of equipment you want HouseOps to manage first.",
+      "home_profile": {
+        "title": "Home profile",
+        "description": "Choose the type of home and ownership so HouseOps can recommend the right systems.",
         "data": {
-          "equipment_type": "Equipment type"
+          "dwelling_type": "Dwelling type",
+          "ownership_type": "Ownership"
+        }
+      },
+      "add_system": {
+        "title": "Add your first system",
+        "description": "Choose how you want to add a system.\n\nRecommended for this home:\n{equipment_summary}",
+        "data": {
+          "next_action": "Choose an action"
+        }
+      },
+      "recommended_systems": {
+        "title": "Recommended systems",
+        "description": "These systems match your home profile.\n\n{equipment_summary}",
+        "data": {
+          "equipment_type": "System template"
+        }
+      },
+      "browse_systems": {
+        "title": "Browse templates",
+        "description": "Browse the full template catalog.\n\n{equipment_summary}",
+        "data": {
+          "catalog_view": "Catalog view",
+          "equipment_type": "System template"
+        }
+      },
+      "create_custom_system": {
+        "title": "Create custom system",
+        "description": "Create a custom system and then add one or more maintenance tasks.",
+        "data": {
+          "equipment_type": "System type",
+          "name": "System name",
+          "custom_category": "Category",
+          "source_entity": "Linked Home Assistant device",
+          "area_id": "Home Assistant area",
+          "custom_area": "Custom area name",
+          "manufacturer": "Manufacturer",
+          "model": "Model",
+          "notes": "Notes",
+          "install_date": "Install date",
+          "last_serviced_date": "Last serviced date",
+          "catalog_tier": "Catalog tier"
+        }
+      },
+      "custom_system_task": {
+        "title": "Add custom task",
+        "description": "Add a maintenance task for this custom system. Tasks added so far: {task_count}.",
+        "data": {
+          "task_title": "Task title",
+          "task_interval_days": "Repeat interval (days)",
+          "task_last_serviced_date": "Last serviced date",
+          "task_next_due_override": "Next due date override",
+          "add_another_task": "Add another task after this one"
         }
       },
       "add_equipment_details": {
-        "title": "Create equipment item",
-        "description": "Create a {equipment_label} item. {equipment_description} The main tracked task is {primary_task}.",
+        "title": "Create system",
+        "description": "Create a {equipment_label} system. {equipment_description} The main tracked task is {primary_task}.",
         "data": {
-          "equipment_type": "Equipment type",
-          "name": "Equipment name",
+          "equipment_type": "System type",
+          "name": "System name",
           "source_entity": "Linked Home Assistant device",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
@@ -44,7 +96,7 @@
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
           "battery_interval_days": "Battery replacement interval (days)",
-          "replacement_interval_days": "Detector replacement interval (days)"
+          "replacement_interval_days": "Replacement interval (days)"
         }
       }
     },
@@ -58,42 +110,91 @@
   "options": {
     "step": {
       "init": {
-        "title": "Manage equipment",
-        "description": "Choose what you want to do with your equipment list.\n\nCurrent equipment:\n{equipment_summary}",
+        "title": "Manage systems",
+        "description": "Choose what you want to do with your system list.\n\nCurrent systems:\n{equipment_summary}",
         "data": {
           "next_action": "Choose an action"
         }
       },
-      "review_equipment": {
-        "title": "Review equipment",
-        "description": "Select an equipment item to review.\n\nCurrent equipment:\n{equipment_summary}",
+      "edit_home_profile": {
+        "title": "Edit home profile",
+        "description": "Update the home profile HouseOps uses for recommendations.",
         "data": {
-          "asset_id": "Equipment"
+          "dwelling_type": "Dwelling type",
+          "ownership_type": "Ownership"
+        }
+      },
+      "review_equipment": {
+        "title": "Review systems",
+        "description": "Select a system to review.\n\nCurrent systems:\n{equipment_summary}",
+        "data": {
+          "asset_id": "System"
         }
       },
       "review_equipment_details": {
-        "title": "Equipment summary",
+        "title": "System summary",
         "description": "{asset_summary}",
         "data": {
           "next_action": "What would you like to do next?"
         }
       },
-      "edit_selected_equipment": {
-        "title": "Edit this equipment"
-      },
-      "add_equipment": {
-        "title": "Add equipment",
-        "description": "Choose what type of equipment you want to add.",
+      "add_system": {
+        "title": "Add system",
+        "description": "Choose how you want to add a system.\n\nRecommended for this home:\n{equipment_summary}",
         "data": {
-          "equipment_type": "Equipment type"
+          "next_action": "Choose an action"
+        }
+      },
+      "recommended_systems": {
+        "title": "Recommended systems",
+        "description": "These systems match your home profile.\n\n{equipment_summary}",
+        "data": {
+          "equipment_type": "System template"
+        }
+      },
+      "browse_systems": {
+        "title": "Browse templates",
+        "description": "Browse the full template catalog.\n\n{equipment_summary}",
+        "data": {
+          "catalog_view": "Catalog view",
+          "equipment_type": "System template"
+        }
+      },
+      "create_custom_system": {
+        "title": "Create custom system",
+        "description": "Create a custom system and then add one or more maintenance tasks.",
+        "data": {
+          "equipment_type": "System type",
+          "name": "System name",
+          "custom_category": "Category",
+          "source_entity": "Linked Home Assistant device",
+          "area_id": "Home Assistant area",
+          "custom_area": "Custom area name",
+          "manufacturer": "Manufacturer",
+          "model": "Model",
+          "notes": "Notes",
+          "install_date": "Install date",
+          "last_serviced_date": "Last serviced date",
+          "catalog_tier": "Catalog tier"
+        }
+      },
+      "custom_system_task": {
+        "title": "Add custom task",
+        "description": "Add a maintenance task for this custom system. Tasks added so far: {task_count}.",
+        "data": {
+          "task_title": "Task title",
+          "task_interval_days": "Repeat interval (days)",
+          "task_last_serviced_date": "Last serviced date",
+          "task_next_due_override": "Next due date override",
+          "add_another_task": "Add another task after this one"
         }
       },
       "add_equipment_details": {
-        "title": "Add equipment details",
-        "description": "Create a {equipment_label} item. {equipment_description} The main tracked task is {primary_task}.",
+        "title": "Add system details",
+        "description": "Create a {equipment_label} system. {equipment_description} The main tracked task is {primary_task}.",
         "data": {
-          "equipment_type": "Equipment type",
-          "name": "Equipment name",
+          "equipment_type": "System type",
+          "name": "System name",
           "source_entity": "Linked Home Assistant device",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
@@ -116,22 +217,23 @@
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
           "battery_interval_days": "Battery replacement interval (days)",
-          "replacement_interval_days": "Detector replacement interval (days)"
+          "replacement_interval_days": "Replacement interval (days)"
         }
       },
       "edit_equipment": {
-        "title": "Edit equipment",
-        "description": "Select an equipment item to edit.\n\nCurrent equipment:\n{equipment_summary}",
+        "title": "Edit system",
+        "description": "Select a system to edit.\n\nCurrent systems:\n{equipment_summary}",
         "data": {
-          "asset_id": "Equipment"
+          "asset_id": "System"
         }
       },
       "edit_equipment_details": {
-        "title": "Edit equipment details",
+        "title": "Edit system details",
         "description": "Update {equipment_label}. {equipment_description} The main tracked task is {primary_task}.",
         "data": {
-          "equipment_type": "Equipment type",
-          "name": "Equipment name",
+          "equipment_type": "System type",
+          "name": "System name",
+          "custom_category": "Category",
           "source_entity": "Linked Home Assistant device",
           "area_id": "Home Assistant area",
           "custom_area": "Custom area name",
@@ -154,26 +256,27 @@
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
           "battery_interval_days": "Battery replacement interval (days)",
-          "replacement_interval_days": "Detector replacement interval (days)"
+          "replacement_interval_days": "Replacement interval (days)",
+          "catalog_tier": "Catalog tier"
         }
       },
       "remove_equipment": {
-        "title": "Remove equipment",
-        "description": "Select an equipment item to remove.\n\nCurrent equipment:\n{equipment_summary}",
+        "title": "Remove system",
+        "description": "Select a system to remove.\n\nCurrent systems:\n{equipment_summary}",
         "data": {
-          "asset_id": "Equipment"
+          "asset_id": "System"
         }
       },
       "remove_selected_equipment": {
         "title": "Confirm removal",
-        "description": "Remove this equipment item from HouseOps?\n\n{asset_summary}",
+        "description": "Remove this system from HouseOps?\n\n{asset_summary}",
         "data": {
-          "confirm_remove": "Yes, remove this equipment item"
+          "confirm_remove": "Yes, remove this system"
         }
       }
     },
     "abort": {
-      "asset_not_found": "The selected equipment item was not found."
+      "asset_not_found": "The selected system was not found."
     }
   },
   "entity": {

@@ -7,9 +7,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
+    ATTR_CATALOG_TIER,
+    ATTR_CATEGORY,
     ATTR_DUE_DETAILS,
     ATTR_DUE_SOURCE,
     ATTR_EQUIPMENT_TYPE,
+    ATTR_IS_CUSTOM,
     ATTR_LINKED_SENSORS,
     ATTR_OVERRIDE_ACTIVE,
     ATTR_POWER_TYPE,
@@ -75,6 +78,9 @@ class HouseOpsMaintenanceStatusSensor(HouseOpsEntity, SensorEntity):
             ATTR_DUE_SOURCE: self.asset_state.due_source,
             ATTR_DUE_DETAILS: self.asset_state.due_details,
             ATTR_EQUIPMENT_TYPE: self.asset.equipment_type,
+            ATTR_CATEGORY: self.asset.custom_category or self.asset.category,
+            ATTR_CATALOG_TIER: self.asset.catalog_tier,
+            ATTR_IS_CUSTOM: self.asset.is_custom,
             ATTR_POWER_TYPE: self.asset.power_type,
             ATTR_TASKS: {
                 key: {

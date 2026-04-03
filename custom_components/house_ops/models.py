@@ -7,6 +7,28 @@ from typing import Any
 
 
 @dataclass(slots=True)
+class HomeProfile:
+    """User profile used to tailor recommended systems."""
+
+    dwelling_type: str
+    ownership_type: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "dwelling_type": self.dwelling_type,
+            "ownership_type": self.ownership_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "HomeProfile":
+        payload = data or {}
+        return cls(
+            dwelling_type=str(payload.get("dwelling_type", "single_family")),
+            ownership_type=str(payload.get("ownership_type", "owner")),
+        )
+
+
+@dataclass(slots=True)
 class SensorLink:
     """A Home Assistant sensor that can influence a maintenance task."""
 
@@ -87,6 +109,8 @@ class Asset:
     equipment_type: str
     power_type: str
     battery_service_mode: str | None
+    category: str | None
+    catalog_tier: str | None
     manufacturer: str | None
     model: str | None
     install_date: date | None
@@ -94,6 +118,8 @@ class Asset:
     notes: str | None
     primary_task_key: str
     tasks: list[MaintenanceTask]
+    is_custom: bool = False
+    custom_category: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -105,6 +131,10 @@ class Asset:
             "equipment_type": self.equipment_type,
             "power_type": self.power_type,
             "battery_service_mode": self.battery_service_mode,
+            "category": self.category,
+            "catalog_tier": self.catalog_tier,
+            "is_custom": self.is_custom,
+            "custom_category": self.custom_category,
             "manufacturer": self.manufacturer,
             "model": self.model,
             "install_date": self.install_date.isoformat() if self.install_date else None,
@@ -126,6 +156,10 @@ class Asset:
             equipment_type=str(data["equipment_type"]),
             power_type=str(data.get("power_type", "wired")),
             battery_service_mode=str(data["battery_service_mode"]) if data.get("battery_service_mode") else None,
+            category=str(data["category"]) if data.get("category") else None,
+            catalog_tier=str(data["catalog_tier"]) if data.get("catalog_tier") else None,
+            is_custom=bool(data.get("is_custom", str(data.get("equipment_type")) == "custom")),
+            custom_category=str(data["custom_category"]) if data.get("custom_category") else None,
             manufacturer=str(data["manufacturer"]) if data.get("manufacturer") else None,
             model=str(data["model"]) if data.get("model") else None,
             install_date=_parse_date(data.get("install_date")),
