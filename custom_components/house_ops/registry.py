@@ -25,25 +25,41 @@ from .const import (
     CONF_BATTERY_THRESHOLD,
     CONF_CATEGORY,
     CONF_CATALOG_TIER,
+    CONF_CONTACT_CLEANING_INTERVAL_DAYS,
     CONF_CUSTOM_AREA,
     CONF_CUSTOM_CATEGORY,
+    CONF_DOCK_AIR_PATH_INTERVAL_DAYS,
+    CONF_DOCK_CLEAN_WATER_TANK_INTERVAL_DAYS,
+    CONF_DOCK_DIRTY_WATER_TANK_INTERVAL_DAYS,
+    CONF_DOCK_DUST_BAG_INTERVAL_DAYS,
+    CONF_DOCK_WASH_TRAY_INTERVAL_DAYS,
+    CONF_DOCK_WATER_FILTER_INTERVAL_DAYS,
+    CONF_DUST_BIN_INTERVAL_DAYS,
     CONF_DWELLING_TYPE,
     CONF_ENABLE_ANODE_TASK,
     CONF_EQUIPMENT_TYPE,
+    CONF_FILTER_INTERVAL_DAYS,
     CONF_HOME_PROFILE,
     CONF_INSTALL_DATE,
     CONF_INSPECTION_INTERVAL_DAYS,
     CONF_LAST_SERVICED,
     CONF_LAST_SERVICED_DATE,
+    CONF_MAIN_BRUSH_INTERVAL_DAYS,
     CONF_MANUFACTURER,
     CONF_MODEL,
+    CONF_MOP_SERVICE_INTERVAL_DAYS,
     CONF_NEXT_DUE_OVERRIDE,
     CONF_NOTES,
     CONF_OWNERSHIP_TYPE,
     CONF_POWER_TYPE,
     CONF_REPLACEMENT_INTERVAL_DAYS,
+    CONF_ROBOT_DOCK_TYPE,
+    CONF_ROBOT_HAS_MOP,
+    CONF_ROBOT_MOP_STYLE,
     CONF_RUNTIME_SENSOR,
     CONF_RUNTIME_THRESHOLD,
+    CONF_SENSOR_CLEANING_INTERVAL_DAYS,
+    CONF_SIDE_BRUSH_INTERVAL_DAYS,
     CONF_SOURCE_ENTITY,
     CONF_TASK_INTERVAL_DAYS,
     CONF_TASK_LAST_SERVICED_DATE,
@@ -51,25 +67,48 @@ from .const import (
     CONF_TASK_TITLE,
     CONF_USAGE_SENSOR,
     CONF_USAGE_THRESHOLD,
+    CONF_WATER_TANK_INTERVAL_DAYS,
+    CONF_WHEEL_CLEAN_INTERVAL_DAYS,
     DEFAULT_BATTERY_THRESHOLD,
     DEFAULT_FIRE_ALARM_BATTERY_INTERVAL_DAYS,
     DEFAULT_FIRE_ALARM_REPLACEMENT_INTERVAL_DAYS,
     DEFAULT_WATER_HEATER_ANODE_INTERVAL_DAYS,
     DWELLING_TYPE_SINGLE_FAMILY,
     EQUIPMENT_TYPE_CUSTOM,
+    EQUIPMENT_TYPE_ROBOT_VACUUM,
     OWNERSHIP_TYPE_OWNER,
     POWER_TYPE_WIRED,
+    ROBOT_DOCK_TYPE_AUTO_EMPTY,
+    ROBOT_DOCK_TYPE_CHARGE_ONLY,
+    ROBOT_DOCK_TYPE_FULL_SERVICE,
+    ROBOT_MOP_STYLE_DUAL_PAD,
+    ROBOT_MOP_STYLE_NONE,
+    ROBOT_MOP_STYLE_SINGLE_PAD_OR_ROLLER,
     SENSOR_ROLE_BATTERY,
     SENSOR_ROLE_RUNTIME,
     SENSOR_ROLE_USAGE,
     TASK_ANODE,
     TASK_BATTERY,
+    TASK_CONTACT_CLEANING,
+    TASK_DOCK_AIR_PATH,
+    TASK_DOCK_CLEAN_WATER_TANK,
+    TASK_DOCK_DIRTY_WATER_TANK,
+    TASK_DOCK_DUST_BAG,
+    TASK_DOCK_WASH_TRAY,
+    TASK_DOCK_WATER_FILTER,
+    TASK_DUST_BIN,
     TASK_FILTER,
     TASK_FLUSH,
     TASK_INSPECTION,
+    TASK_MAIN_BRUSH,
+    TASK_MOP_SERVICE,
     TASK_REPLACEMENT,
+    TASK_SENSOR_CLEANING,
     TASK_SERVICE,
+    TASK_SIDE_BRUSH,
     TASK_TEST,
+    TASK_WATER_TANK_CLEANING,
+    TASK_WHEEL_CLEAN,
 )
 from .equipment_catalog import (
     BATTERY_SERVICE_MODE_LABELS,
@@ -141,6 +180,8 @@ def build_asset_from_input(
     primary_task_key = definition.primary_task_key
     primary_override = _as_date(user_input.get(CONF_NEXT_DUE_OVERRIDE))
     include_anode = bool(user_input.get(CONF_ENABLE_ANODE_TASK)) or TASK_ANODE in previous_tasks
+    robot_mop_style = _resolve_robot_mop_style(user_input, existing_asset, equipment_type)
+    robot_dock_type = _resolve_robot_dock_type(user_input, existing_asset, equipment_type)
 
     effective_input = dict(user_input)
     if not effective_input.get(CONF_BATTERY_SENSOR) and derived["battery_sensor"]:
@@ -149,6 +190,8 @@ def build_asset_from_input(
     tasks: list[MaintenanceTask] = []
     for task_definition in available_task_definitions(definition, power_type, battery_service_mode):
         if task_definition.key == TASK_ANODE and not include_anode:
+            continue
+        if not _robot_task_enabled(task_definition.key, equipment_type, robot_mop_style, robot_dock_type):
             continue
 
         previous = previous_tasks.get(task_definition.key)
@@ -194,6 +237,9 @@ def build_asset_from_input(
         tasks=tasks,
         is_custom=False,
         custom_category=None,
+        robot_has_mop=robot_mop_style != ROBOT_MOP_STYLE_NONE if equipment_type == EQUIPMENT_TYPE_ROBOT_VACUUM else False,
+        robot_mop_style=robot_mop_style if equipment_type == EQUIPMENT_TYPE_ROBOT_VACUUM else None,
+        robot_dock_type=robot_dock_type if equipment_type == EQUIPMENT_TYPE_ROBOT_VACUUM else None,
     )
 
 
@@ -273,6 +319,9 @@ def _build_custom_asset_from_input(
         tasks=tasks,
         is_custom=True,
         custom_category=category,
+        robot_has_mop=False,
+        robot_mop_style=None,
+        robot_dock_type=None,
     )
 
 
@@ -299,7 +348,6 @@ def mark_task_serviced(assets: list[Asset], asset_id: str, task_key: str, servic
     for asset in updated:
         if asset.asset_id != asset_id:
             continue
-        asset.last_serviced_date = serviced_on
         for task in asset.tasks:
             if task.key == task_key:
                 task.last_serviced_date = serviced_on
@@ -329,11 +377,15 @@ def asset_summary(asset: Asset) -> str:
     battery_suffix = ""
     if asset.battery_service_mode in BATTERY_SERVICE_MODE_LABELS:
         battery_suffix = f", {BATTERY_SERVICE_MODE_LABELS[asset.battery_service_mode].lower()}"
+    robot_suffix = ""
+    if asset.equipment_type == EQUIPMENT_TYPE_ROBOT_VACUUM:
+        robot_bits = [_robot_mop_style_label(asset.robot_mop_style), _robot_dock_type_label(asset.robot_dock_type)]
+        robot_suffix = f", {', '.join(bit for bit in robot_bits if bit)}"
     category = asset.custom_category or asset.category or "Uncategorized"
     tier = asset.catalog_tier or CATALOG_TIER_BASIC
     system_type = "Custom system" if asset.is_custom else equipment_label
     return (
-        f"{asset.name} ({system_type}, {category}, {tier}, {power_label}{battery_suffix}) "
+        f"{asset.name} ({system_type}, {category}, {tier}, {power_label}{battery_suffix}{robot_suffix}) "
         f"in {area}. Tasks: {task_bits or 'none'}."
     )
 
@@ -352,6 +404,20 @@ def _interval_for_task(task_key: str, user_input: dict[str, Any], previous: Main
         TASK_ANODE: CONF_ANODE_INTERVAL_DAYS,
         TASK_BATTERY: CONF_BATTERY_INTERVAL_DAYS,
         TASK_REPLACEMENT: CONF_REPLACEMENT_INTERVAL_DAYS,
+        TASK_DUST_BIN: CONF_DUST_BIN_INTERVAL_DAYS,
+        TASK_MAIN_BRUSH: CONF_MAIN_BRUSH_INTERVAL_DAYS,
+        TASK_SIDE_BRUSH: CONF_SIDE_BRUSH_INTERVAL_DAYS,
+        TASK_WHEEL_CLEAN: CONF_WHEEL_CLEAN_INTERVAL_DAYS,
+        TASK_SENSOR_CLEANING: CONF_SENSOR_CLEANING_INTERVAL_DAYS,
+        TASK_CONTACT_CLEANING: CONF_CONTACT_CLEANING_INTERVAL_DAYS,
+        TASK_MOP_SERVICE: CONF_MOP_SERVICE_INTERVAL_DAYS,
+        TASK_WATER_TANK_CLEANING: CONF_WATER_TANK_INTERVAL_DAYS,
+        TASK_DOCK_DUST_BAG: CONF_DOCK_DUST_BAG_INTERVAL_DAYS,
+        TASK_DOCK_AIR_PATH: CONF_DOCK_AIR_PATH_INTERVAL_DAYS,
+        TASK_DOCK_CLEAN_WATER_TANK: CONF_DOCK_CLEAN_WATER_TANK_INTERVAL_DAYS,
+        TASK_DOCK_DIRTY_WATER_TANK: CONF_DOCK_DIRTY_WATER_TANK_INTERVAL_DAYS,
+        TASK_DOCK_WASH_TRAY: CONF_DOCK_WASH_TRAY_INTERVAL_DAYS,
+        TASK_DOCK_WATER_FILTER: CONF_DOCK_WATER_FILTER_INTERVAL_DAYS,
     }
     defaults = {
         TASK_INSPECTION: 365,
@@ -359,6 +425,21 @@ def _interval_for_task(task_key: str, user_input: dict[str, Any], previous: Main
         TASK_BATTERY: DEFAULT_FIRE_ALARM_BATTERY_INTERVAL_DAYS,
         TASK_REPLACEMENT: DEFAULT_FIRE_ALARM_REPLACEMENT_INTERVAL_DAYS,
         TASK_SERVICE: int(user_input.get(CONF_BASE_INTERVAL_DAYS, 180)),
+        TASK_FILTER: int(user_input.get(CONF_BASE_INTERVAL_DAYS, 90)),
+        TASK_DUST_BIN: 3,
+        TASK_MAIN_BRUSH: 14,
+        TASK_SIDE_BRUSH: 14,
+        TASK_WHEEL_CLEAN: 14,
+        TASK_SENSOR_CLEANING: 30,
+        TASK_CONTACT_CLEANING: 30,
+        TASK_MOP_SERVICE: 7,
+        TASK_WATER_TANK_CLEANING: 14,
+        TASK_DOCK_DUST_BAG: 60,
+        TASK_DOCK_AIR_PATH: 30,
+        TASK_DOCK_CLEAN_WATER_TANK: 30,
+        TASK_DOCK_DIRTY_WATER_TANK: 7,
+        TASK_DOCK_WASH_TRAY: 14,
+        TASK_DOCK_WATER_FILTER: 30,
     }
     field = interval_map.get(task_key)
     if field and user_input.get(field) not in (None, ""):
@@ -424,6 +505,73 @@ def _resolve_battery_service_mode(
     if existing_asset and any(task.key == TASK_BATTERY for task in existing_asset.tasks):
         return BATTERY_SERVICE_REPLACEABLE
     return BATTERY_SERVICE_REPLACEABLE
+
+
+def _resolve_robot_mop_style(
+    user_input: dict[str, Any],
+    existing_asset: Asset | None,
+    equipment_type: str,
+) -> str | None:
+    if equipment_type != EQUIPMENT_TYPE_ROBOT_VACUUM:
+        return None
+    requested = _clean_optional(user_input.get(CONF_ROBOT_MOP_STYLE))
+    if requested:
+        return requested
+    if bool(user_input.get(CONF_ROBOT_HAS_MOP)):
+        return ROBOT_MOP_STYLE_SINGLE_PAD_OR_ROLLER
+    if existing_asset and existing_asset.robot_mop_style:
+        return existing_asset.robot_mop_style
+    return ROBOT_MOP_STYLE_NONE
+
+
+def _resolve_robot_dock_type(
+    user_input: dict[str, Any],
+    existing_asset: Asset | None,
+    equipment_type: str,
+) -> str | None:
+    if equipment_type != EQUIPMENT_TYPE_ROBOT_VACUUM:
+        return None
+    requested = _clean_optional(user_input.get(CONF_ROBOT_DOCK_TYPE))
+    if requested:
+        return requested
+    if existing_asset and existing_asset.robot_dock_type:
+        return existing_asset.robot_dock_type
+    return ROBOT_DOCK_TYPE_CHARGE_ONLY
+
+
+def _robot_task_enabled(task_key: str, equipment_type: str, mop_style: str | None, dock_type: str | None) -> bool:
+    if equipment_type != EQUIPMENT_TYPE_ROBOT_VACUUM:
+        return True
+    if task_key in {TASK_MOP_SERVICE, TASK_WATER_TANK_CLEANING}:
+        return mop_style not in (None, ROBOT_MOP_STYLE_NONE)
+    if task_key in {TASK_DOCK_DUST_BAG, TASK_DOCK_AIR_PATH}:
+        return dock_type in {ROBOT_DOCK_TYPE_AUTO_EMPTY, ROBOT_DOCK_TYPE_FULL_SERVICE}
+    if task_key in {
+        TASK_DOCK_CLEAN_WATER_TANK,
+        TASK_DOCK_DIRTY_WATER_TANK,
+        TASK_DOCK_WASH_TRAY,
+        TASK_DOCK_WATER_FILTER,
+    }:
+        return dock_type == ROBOT_DOCK_TYPE_FULL_SERVICE
+    return True
+
+
+def _robot_mop_style_label(value: str | None) -> str | None:
+    labels = {
+        ROBOT_MOP_STYLE_NONE: "No mop",
+        ROBOT_MOP_STYLE_SINGLE_PAD_OR_ROLLER: "Single pad / roller mop",
+        ROBOT_MOP_STYLE_DUAL_PAD: "Dual spinning pads",
+    }
+    return labels.get(value)
+
+
+def _robot_dock_type_label(value: str | None) -> str | None:
+    labels = {
+        ROBOT_DOCK_TYPE_CHARGE_ONLY: "Charging dock",
+        ROBOT_DOCK_TYPE_AUTO_EMPTY: "Auto-empty dock",
+        ROBOT_DOCK_TYPE_FULL_SERVICE: "Advanced service dock",
+    }
+    return labels.get(value)
 
 
 def _resolve_asset_name(user_input: dict[str, Any], derived: dict[str, str | None]) -> str:

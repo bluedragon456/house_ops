@@ -39,6 +39,21 @@
           "equipment_type": "System template"
         }
       },
+      "search_systems": {
+        "title": "Search templates",
+        "description": "Search the template catalog before creating a system.",
+        "data": {
+          "catalog_view": "Catalog view",
+          "search_query": "Search text"
+        }
+      },
+      "search_system_results": {
+        "title": "Template results",
+        "description": "Matching templates for {search_query}.\n\n{equipment_summary}",
+        "data": {
+          "equipment_type": "System template"
+        }
+      },
       "create_custom_system": {
         "title": "Create custom system",
         "description": "Create a custom system and then add one or more maintenance tasks.",
@@ -55,6 +70,14 @@
           "install_date": "Install date",
           "last_serviced_date": "Last serviced date",
           "catalog_tier": "Catalog tier"
+        }
+      },
+      "robot_vacuum_capabilities": {
+        "title": "Robot vacuum setup",
+        "description": "Choose the robot mop style and dock type before entering maintenance details.",
+        "data": {
+          "robot_mop_style": "Mop style",
+          "robot_dock_type": "Dock type"
         }
       },
       "custom_system_task": {
@@ -96,7 +119,21 @@
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
           "battery_interval_days": "Battery replacement interval (days)",
-          "replacement_interval_days": "Replacement interval (days)"
+          "replacement_interval_days": "Replacement interval (days)",
+          "dust_bin_interval_days": "Dust bin interval (days)",
+          "main_brush_interval_days": "Main brush interval (days)",
+          "side_brush_interval_days": "Side brush interval (days)",
+          "wheel_clean_interval_days": "Wheel and hair cleanup interval (days)",
+          "sensor_cleaning_interval_days": "Sensor cleaning interval (days)",
+          "contact_cleaning_interval_days": "Charging contact interval (days)",
+          "mop_service_interval_days": "Mop pad / roller interval (days)",
+          "water_tank_interval_days": "Water tank interval (days)",
+          "dock_dust_bag_interval_days": "Dock dust bag interval (days)",
+          "dock_air_path_interval_days": "Dock dust path interval (days)",
+          "dock_clean_water_tank_interval_days": "Dock clean water tank interval (days)",
+          "dock_dirty_water_tank_interval_days": "Dock dirty water tank interval (days)",
+          "dock_wash_tray_interval_days": "Dock wash tray interval (days)",
+          "dock_water_filter_interval_days": "Dock water filter interval (days)"
         }
       }
     },
@@ -126,7 +163,14 @@
       },
       "review_equipment": {
         "title": "Review systems",
-        "description": "Select a system to review.\n\nCurrent systems:\n{equipment_summary}",
+        "description": "Search for a system to review.\n\nCurrent systems:\n{equipment_summary}",
+        "data": {
+          "search_query": "Search text"
+        }
+      },
+      "asset_search_results": {
+        "title": "Matching systems",
+        "description": "Select a system from the matching results.\n\nCurrent systems:\n{equipment_summary}",
         "data": {
           "asset_id": "System"
         }
@@ -160,6 +204,21 @@
           "equipment_type": "System template"
         }
       },
+      "search_systems": {
+        "title": "Search templates",
+        "description": "Search the template catalog before adding a system.",
+        "data": {
+          "catalog_view": "Catalog view",
+          "search_query": "Search text"
+        }
+      },
+      "search_system_results": {
+        "title": "Template results",
+        "description": "Matching templates for {search_query}.\n\n{equipment_summary}",
+        "data": {
+          "equipment_type": "System template"
+        }
+      },
       "create_custom_system": {
         "title": "Create custom system",
         "description": "Create a custom system and then add one or more maintenance tasks.",
@@ -176,6 +235,14 @@
           "install_date": "Install date",
           "last_serviced_date": "Last serviced date",
           "catalog_tier": "Catalog tier"
+        }
+      },
+      "robot_vacuum_capabilities": {
+        "title": "Robot vacuum setup",
+        "description": "Choose the robot mop style and dock type before entering maintenance details.",
+        "data": {
+          "robot_mop_style": "Mop style",
+          "robot_dock_type": "Dock type"
         }
       },
       "custom_system_task": {
@@ -217,14 +284,36 @@
           "battery_sensor": "Battery sensor",
           "battery_threshold": "Battery threshold (%)",
           "battery_interval_days": "Battery replacement interval (days)",
-          "replacement_interval_days": "Replacement interval (days)"
+          "replacement_interval_days": "Replacement interval (days)",
+          "dust_bin_interval_days": "Dust bin interval (days)",
+          "main_brush_interval_days": "Main brush interval (days)",
+          "side_brush_interval_days": "Side brush interval (days)",
+          "wheel_clean_interval_days": "Wheel and hair cleanup interval (days)",
+          "sensor_cleaning_interval_days": "Sensor cleaning interval (days)",
+          "contact_cleaning_interval_days": "Charging contact interval (days)",
+          "mop_service_interval_days": "Mop pad / roller interval (days)",
+          "water_tank_interval_days": "Water tank interval (days)",
+          "dock_dust_bag_interval_days": "Dock dust bag interval (days)",
+          "dock_air_path_interval_days": "Dock dust path interval (days)",
+          "dock_clean_water_tank_interval_days": "Dock clean water tank interval (days)",
+          "dock_dirty_water_tank_interval_days": "Dock dirty water tank interval (days)",
+          "dock_wash_tray_interval_days": "Dock wash tray interval (days)",
+          "dock_water_filter_interval_days": "Dock water filter interval (days)"
         }
       },
       "edit_equipment": {
         "title": "Edit system",
-        "description": "Select a system to edit.\n\nCurrent systems:\n{equipment_summary}",
+        "description": "Search for a system to edit.\n\nCurrent systems:\n{equipment_summary}",
         "data": {
-          "asset_id": "System"
+          "search_query": "Search text"
+        }
+      },
+      "edit_robot_vacuum_capabilities": {
+        "title": "Edit robot vacuum setup",
+        "description": "Update the robot mop style and dock type before editing maintenance details.",
+        "data": {
+          "robot_mop_style": "Mop style",
+          "robot_dock_type": "Dock type"
         }
       },
       "edit_equipment_details": {
@@ -257,14 +346,28 @@
           "battery_threshold": "Battery threshold (%)",
           "battery_interval_days": "Battery replacement interval (days)",
           "replacement_interval_days": "Replacement interval (days)",
+          "dust_bin_interval_days": "Dust bin interval (days)",
+          "main_brush_interval_days": "Main brush interval (days)",
+          "side_brush_interval_days": "Side brush interval (days)",
+          "wheel_clean_interval_days": "Wheel and hair cleanup interval (days)",
+          "sensor_cleaning_interval_days": "Sensor cleaning interval (days)",
+          "contact_cleaning_interval_days": "Charging contact interval (days)",
+          "mop_service_interval_days": "Mop pad / roller interval (days)",
+          "water_tank_interval_days": "Water tank interval (days)",
+          "dock_dust_bag_interval_days": "Dock dust bag interval (days)",
+          "dock_air_path_interval_days": "Dock dust path interval (days)",
+          "dock_clean_water_tank_interval_days": "Dock clean water tank interval (days)",
+          "dock_dirty_water_tank_interval_days": "Dock dirty water tank interval (days)",
+          "dock_wash_tray_interval_days": "Dock wash tray interval (days)",
+          "dock_water_filter_interval_days": "Dock water filter interval (days)",
           "catalog_tier": "Catalog tier"
         }
       },
       "remove_equipment": {
         "title": "Remove system",
-        "description": "Select a system to remove.\n\nCurrent systems:\n{equipment_summary}",
+        "description": "Search for a system to remove.\n\nCurrent systems:\n{equipment_summary}",
         "data": {
-          "asset_id": "System"
+          "search_query": "Search text"
         }
       },
       "remove_selected_equipment": {

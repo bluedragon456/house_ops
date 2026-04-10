@@ -70,22 +70,30 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import re
           from pathlib import Path
 
           version = "${{ steps.version.outputs.version }}"
           manifest_path = Path("custom_components/house_ops/manifest.json")
+          const_path = Path("custom_components/house_ops/const.py")
 
           data = json.loads(manifest_path.read_text(encoding="utf-8"))
           data["version"] = version
           manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          const_text = const_path.read_text(encoding="utf-8")
+          const_text, replacements = re.subn(r'^VERSION = "[^"]+"$', f'VERSION = "{version}"', const_text, flags=re.MULTILINE)
+          if replacements != 1:
+              raise RuntimeError(f"Expected to update one VERSION line in {const_path}, updated {replacements}")
+          const_path.write_text(const_text, encoding="utf-8")
           print(f"Updated manifest.json to {version}")
+          print(f"Updated const.py to {version}")
           PY
 
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add custom_components/house_ops/manifest.json
+          git add custom_components/house_ops/manifest.json custom_components/house_ops/const.py
           git commit -m "Release v${{ steps.version.outputs.version }}" || echo "No changes to commit"
 
       - name: Create and push tag

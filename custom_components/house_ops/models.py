@@ -120,6 +120,9 @@ class Asset:
     tasks: list[MaintenanceTask]
     is_custom: bool = False
     custom_category: str | None = None
+    robot_has_mop: bool = False
+    robot_mop_style: str | None = None
+    robot_dock_type: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -135,6 +138,9 @@ class Asset:
             "catalog_tier": self.catalog_tier,
             "is_custom": self.is_custom,
             "custom_category": self.custom_category,
+            "robot_has_mop": self.robot_has_mop,
+            "robot_mop_style": self.robot_mop_style,
+            "robot_dock_type": self.robot_dock_type,
             "manufacturer": self.manufacturer,
             "model": self.model,
             "install_date": self.install_date.isoformat() if self.install_date else None,
@@ -160,6 +166,9 @@ class Asset:
             catalog_tier=str(data["catalog_tier"]) if data.get("catalog_tier") else None,
             is_custom=bool(data.get("is_custom", str(data.get("equipment_type")) == "custom")),
             custom_category=str(data["custom_category"]) if data.get("custom_category") else None,
+            robot_has_mop=bool(data.get("robot_has_mop", False)),
+            robot_mop_style=str(data["robot_mop_style"]) if data.get("robot_mop_style") else None,
+            robot_dock_type=str(data["robot_dock_type"]) if data.get("robot_dock_type") else None,
             manufacturer=str(data["manufacturer"]) if data.get("manufacturer") else None,
             model=str(data["model"]) if data.get("model") else None,
             install_date=_parse_date(data.get("install_date")),

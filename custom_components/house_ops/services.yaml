@@ -75,6 +75,15 @@ add_asset:
       description: Use replaceable for batteries you swap, or sealed for batteries that last the detector's lifespan.
       selector:
         text:
+    robot_mop_style:
+      name: Robot mop style
+      description: Use single pad / roller for roller mops and other single-pad systems.
+      selector:
+        text:
+    robot_dock_type:
+      name: Robot dock type
+      selector:
+        text:
     manufacturer:
       name: Manufacturer
       selector:
@@ -130,6 +139,104 @@ add_asset:
         number:
           min: 365
           max: 7300
+          mode: box
+    dust_bin_interval_days:
+      name: Dust bin interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    main_brush_interval_days:
+      name: Main brush interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    side_brush_interval_days:
+      name: Side brush interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    wheel_clean_interval_days:
+      name: Wheel and hair cleanup interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    sensor_cleaning_interval_days:
+      name: Sensor cleaning interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    contact_cleaning_interval_days:
+      name: Charging contact interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    mop_service_interval_days:
+      name: Mop pad / roller interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    water_tank_interval_days:
+      name: Water tank interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    dock_dust_bag_interval_days:
+      name: Dock dust bag interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    dock_air_path_interval_days:
+      name: Dock dust path interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    dock_clean_water_tank_interval_days:
+      name: Dock clean water tank interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    dock_dirty_water_tank_interval_days:
+      name: Dock dirty water tank interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    dock_wash_tray_interval_days:
+      name: Dock wash tray interval
+      selector:
+        number:
+          min: 1
+          max: 3650
+          mode: box
+    dock_water_filter_interval_days:
+      name: Dock water filter interval
+      selector:
+        number:
+          min: 1
+          max: 3650
           mode: box
     notes:
       name: Notes

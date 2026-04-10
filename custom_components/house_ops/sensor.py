@@ -17,6 +17,8 @@ from .const import (
     ATTR_OVERRIDE_ACTIVE,
     ATTR_POWER_TYPE,
     ATTR_REASON,
+    ATTR_ROBOT_DOCK_TYPE,
+    ATTR_ROBOT_MOP_STYLE,
     ATTR_TASKS,
     ATTR_TASK_TITLE,
     MAINTENANCE_STATES,
@@ -82,6 +84,8 @@ class HouseOpsMaintenanceStatusSensor(HouseOpsEntity, SensorEntity):
             ATTR_CATALOG_TIER: self.asset.catalog_tier,
             ATTR_IS_CUSTOM: self.asset.is_custom,
             ATTR_POWER_TYPE: self.asset.power_type,
+            ATTR_ROBOT_MOP_STYLE: self.asset.robot_mop_style,
+            ATTR_ROBOT_DOCK_TYPE: self.asset.robot_dock_type,
             ATTR_TASKS: {
                 key: {
                     "title": task.task_title,
