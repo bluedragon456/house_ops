@@ -5,7 +5,7 @@ from homeassistant.const import Platform
 
 DOMAIN = "house_ops"
 NAME = "HouseOps"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
