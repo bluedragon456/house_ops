@@ -28,6 +28,7 @@ from .const import (
     CONF_CONTACT_CLEANING_INTERVAL_DAYS,
     CONF_CUSTOM_AREA,
     CONF_CUSTOM_CATEGORY,
+    CONF_DOCK_SOURCE_ENTITY,
     CONF_DOCK_AIR_PATH_INTERVAL_DAYS,
     CONF_DOCK_CLEAN_WATER_TANK_INTERVAL_DAYS,
     CONF_DOCK_DIRTY_WATER_TANK_INTERVAL_DAYS,
@@ -167,6 +168,7 @@ def build_asset_from_input(
     definition = get_equipment_definition(equipment_type)
     power_type = str(user_input.get(CONF_POWER_TYPE) or definition.default_power_type)
     source_device = _clean_optional(user_input.get(CONF_SOURCE_ENTITY))
+    dock_source_device = _clean_optional(user_input.get(CONF_DOCK_SOURCE_ENTITY))
     derived = _derive_source_context(hass, source_device)
     asset_name = _resolve_asset_name(user_input, derived)
     battery_service_mode = _resolve_battery_service_mode(user_input, existing_asset, equipment_type, power_type)
@@ -223,6 +225,7 @@ def build_asset_from_input(
         area=area,
         area_id=area_id,
         source_entity=source_device,
+        dock_source_entity=dock_source_device,
         equipment_type=equipment_type,
         power_type=power_type,
         battery_service_mode=battery_service_mode,
@@ -253,6 +256,7 @@ def _build_custom_asset_from_input(
     category = _clean_optional(user_input.get(CONF_CUSTOM_CATEGORY) or user_input.get(CONF_CATEGORY)) or "Custom"
     definition = build_custom_definition(str(user_input.get(CONF_ASSET_NAME) or "Custom system"), category)
     source_device = _clean_optional(user_input.get(CONF_SOURCE_ENTITY))
+    dock_source_device = _clean_optional(user_input.get(CONF_DOCK_SOURCE_ENTITY))
     derived = _derive_source_context(hass, source_device)
     asset_name = _resolve_asset_name(user_input, derived)
     asset_id = existing_asset.asset_id if existing_asset else _generate_asset_id(user_input, existing_assets, asset_name)
@@ -305,6 +309,7 @@ def _build_custom_asset_from_input(
         area=area,
         area_id=area_id,
         source_entity=source_device,
+        dock_source_entity=dock_source_device,
         equipment_type=EQUIPMENT_TYPE_CUSTOM,
         power_type=str(user_input.get(CONF_POWER_TYPE) or definition.default_power_type),
         battery_service_mode=None,
@@ -380,6 +385,8 @@ def asset_summary(asset: Asset) -> str:
     robot_suffix = ""
     if asset.equipment_type == EQUIPMENT_TYPE_ROBOT_VACUUM:
         robot_bits = [_robot_mop_style_label(asset.robot_mop_style), _robot_dock_type_label(asset.robot_dock_type)]
+        if asset.dock_source_entity:
+            robot_bits.append("linked dock")
         robot_suffix = f", {', '.join(bit for bit in robot_bits if bit)}"
     category = asset.custom_category or asset.category or "Uncategorized"
     tier = asset.catalog_tier or CATALOG_TIER_BASIC

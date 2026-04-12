@@ -106,6 +106,7 @@ class Asset:
     area: str | None
     area_id: str | None
     source_entity: str | None
+    dock_source_entity: str | None
     equipment_type: str
     power_type: str
     battery_service_mode: str | None
@@ -131,6 +132,7 @@ class Asset:
             "area": self.area,
             "area_id": self.area_id,
             "source_entity": self.source_entity,
+            "dock_source_entity": self.dock_source_entity,
             "equipment_type": self.equipment_type,
             "power_type": self.power_type,
             "battery_service_mode": self.battery_service_mode,
@@ -159,6 +161,7 @@ class Asset:
             area=str(data["area"]) if data.get("area") else None,
             area_id=str(data["area_id"]) if data.get("area_id") else None,
             source_entity=str(data["source_entity"]) if data.get("source_entity") else None,
+            dock_source_entity=str(data["dock_source_entity"]) if data.get("dock_source_entity") else None,
             equipment_type=str(data["equipment_type"]),
             power_type=str(data.get("power_type", "wired")),
             battery_service_mode=str(data["battery_service_mode"]) if data.get("battery_service_mode") else None,

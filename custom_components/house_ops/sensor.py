@@ -11,6 +11,7 @@ from .const import (
     ATTR_CATEGORY,
     ATTR_DUE_DETAILS,
     ATTR_DUE_SOURCE,
+    ATTR_DOCK_SOURCE_ENTITY,
     ATTR_EQUIPMENT_TYPE,
     ATTR_IS_CUSTOM,
     ATTR_LINKED_SENSORS,
@@ -86,6 +87,7 @@ class HouseOpsMaintenanceStatusSensor(HouseOpsEntity, SensorEntity):
             ATTR_POWER_TYPE: self.asset.power_type,
             ATTR_ROBOT_MOP_STYLE: self.asset.robot_mop_style,
             ATTR_ROBOT_DOCK_TYPE: self.asset.robot_dock_type,
+            ATTR_DOCK_SOURCE_ENTITY: self.asset.dock_source_entity,
             ATTR_TASKS: {
                 key: {
                     "title": task.task_title,

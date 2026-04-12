@@ -58,6 +58,11 @@ add_asset:
       description: Optional device used to pull device name, area, manufacturer, model, and battery sensor details.
       selector:
         device:
+    dock_source_entity:
+      name: Linked dock device
+      description: Optional dock or base station device when Home Assistant exposes it separately from the robot.
+      selector:
+        device:
     area_id:
       name: Home Assistant area ID
       selector:

@@ -31,6 +31,7 @@ from .const import (
     CONF_CONFIRM_REMOVE,
     CONF_CUSTOM_AREA,
     CONF_CUSTOM_CATEGORY,
+    CONF_DOCK_SOURCE_ENTITY,
     CONF_DOCK_AIR_PATH_INTERVAL_DAYS,
     CONF_DOCK_CLEAN_WATER_TANK_INTERVAL_DAYS,
     CONF_DOCK_DIRTY_WATER_TANK_INTERVAL_DAYS,
@@ -826,6 +827,8 @@ def _build_asset_schema(definition: EquipmentDefinition, defaults: dict[str, Any
     _add_required(schema, CONF_EQUIPMENT_TYPE, _equipment_selector((definition,)), default=definition.key)
     _add_required(schema, CONF_ASSET_NAME, selector.TextSelector(), default=defaults.get(CONF_ASSET_NAME, ""))
     _add_optional(schema, CONF_SOURCE_ENTITY, _device_selector(), default=defaults.get(CONF_SOURCE_ENTITY))
+    if definition.key == EQUIPMENT_TYPE_ROBOT_VACUUM:
+        _add_optional(schema, CONF_DOCK_SOURCE_ENTITY, _device_selector(), default=defaults.get(CONF_DOCK_SOURCE_ENTITY))
     _add_optional(schema, CONF_AREA_ID, selector.AreaSelector(), default=defaults.get(CONF_AREA_ID))
     _add_optional(schema, CONF_CUSTOM_AREA, selector.TextSelector(), default=defaults.get(CONF_CUSTOM_AREA))
 
@@ -961,6 +964,7 @@ def _defaults_from_asset(asset) -> dict[str, Any]:
         CONF_EQUIPMENT_TYPE: asset.equipment_type,
         CONF_ASSET_NAME: asset.name,
         CONF_SOURCE_ENTITY: asset.source_entity,
+        CONF_DOCK_SOURCE_ENTITY: asset.dock_source_entity,
         CONF_AREA_ID: asset.area_id,
         CONF_CUSTOM_AREA: None if asset.area_id else asset.area,
         CONF_POWER_TYPE: asset.power_type,
@@ -1032,6 +1036,7 @@ def _defaults_from_custom_asset(asset) -> dict[str, Any]:
         CONF_EQUIPMENT_TYPE: EQUIPMENT_TYPE_CUSTOM,
         CONF_ASSET_NAME: asset.name,
         CONF_SOURCE_ENTITY: asset.source_entity,
+        CONF_DOCK_SOURCE_ENTITY: asset.dock_source_entity,
         CONF_AREA_ID: asset.area_id,
         CONF_CUSTOM_AREA: None if asset.area_id else asset.area,
         CONF_CUSTOM_CATEGORY: asset.custom_category or asset.category,
@@ -1066,6 +1071,7 @@ def _sanitize_asset_input(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_CUSTOM_AREA,
         CONF_AREA_ID,
         CONF_SOURCE_ENTITY,
+        CONF_DOCK_SOURCE_ENTITY,
         CONF_RUNTIME_SENSOR,
         CONF_USAGE_SENSOR,
         CONF_BATTERY_SENSOR,
